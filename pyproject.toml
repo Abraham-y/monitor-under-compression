@@ -1,0 +1,18 @@
+[project]
+name = "monitor-under-compression"
+version = "0.1.0"
+description = "Does a VLA failure monitor survive compression of the policy it watches?"
+requires-python = ">=3.11"
+# The local side launches Modal jobs and runs the analysis. torch, lerobot and LIBERO
+# live in the Modal image (modal_app.py), never in this environment.
+dependencies = [
+    "matplotlib",
+    "modal>=1.3",
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "scipy",
+]
+
+[tool.uv]
+package = false
