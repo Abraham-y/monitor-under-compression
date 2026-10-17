@@ -1,0 +1,51 @@
+\documentclass{article}
+
+\usepackage{corl_2026}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{amsmath}
+
+\title{Does a Failure Monitor Survive Compression of the Policy It Watches?}
+
+\author{Anonymous}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+%ABSTRACT
+\end{abstract}
+
+\keywords{VLA, quantization, runtime monitoring, failure detection, conformal prediction}
+
+\section{Introduction}
+
+A vision-language-action (VLA) policy that reaches a robot is usually changed twice
+before deployment. It is compressed, because a 7B or even 0.5B model is slow at control
+rates~\citep{vlaquantbench,quantvla}. And it is wrapped in a runtime failure
+monitor, increasingly one that reads the policy's own hidden states and raises an alarm
+when a calibrated threshold is crossed~\citep{safe,safecast,vlafail}. The monitor is
+trained and calibrated on rollouts of the policy as it was trained. Nobody, as far as we
+can find, checks whether it still works on the policy as it is deployed.
+
+Compression papers report that weight quantization leaves task success almost
+unchanged~\citep{vlaquantbench,embodiedeff}. That is the wrong evidence for a monitor.
+A hidden-state monitor depends on the geometry of the representation, and a conformal
+threshold depends on calibration and deployment rollouts being exchangeable; neither is
+implied by equal success rates. In language models, quantization that improves perplexity
+still damages a fifth of an SAE's features~\citep{saequant}.
+
+We test this directly. %CONTRIBUTION
+
+\section{Setup}
+%SETUP
+
+\section{Results}
+%RESULTS
+
+\section{Discussion and limitations}
+%DISCUSSION
+
+\bibliography{refs}
+
+\end{document}

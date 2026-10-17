@@ -36,6 +36,9 @@ image = (
     .run_commands(
         "mkdir -p /usr/share/glvnd/egl_vendor.d",
         f"echo '{NVIDIA_EGL}' > /usr/share/glvnd/egl_vendor.d/10_nvidia.json",
+        # LIBERO asks on first import where its datasets live; answer "no" to keep the
+        # defaults and write ~/.libero/config.yaml at build time.
+        "echo n | python -c 'import libero.libero' && cat /root/.libero/config.yaml",
     )
     .env(
         {
@@ -86,6 +89,7 @@ def _summary(out: dict) -> dict:
         "length": out["length"].tolist(),
         "wall_s": round(float(out["wall_s"]), 1),
         "s_per_call": round(float(out["wall_s"]) / int(out["n_policy_calls"]), 3),
+        "policy_s_per_call": round(float(out["policy_s"]) / int(out["n_policy_calls"]), 3),
         "shapes": {k: list(out[k].shape) for k in ("h_vlm", "h_exp", "chunk", "action")},
     }
 
@@ -115,6 +119,52 @@ def smoke(condition: str, suite: str, task_id: int, n_envs: int) -> dict:
         "verify": r.verify,
         **_summary(out),
     }
+
+
+@app.function(**KW)
+def diag(suite: str, task_id: int, n_envs: int, episode_length: int, use_async: bool, condition: str = "ref") -> dict:
+    """Where does the time go? Policy vs env, and which GL backend MuJoCo got."""
+    import ctypes
+    import os
+    import time
+
+    import rollout
+
+    info = {"MUJOCO_GL": os.environ.get("MUJOCO_GL"), "nproc": os.cpu_count()}
+    for lib in ("libEGL_nvidia.so.0", "libEGL.so.1", "libOSMesa.so.8"):
+        try:
+            ctypes.CDLL(lib)
+            info[lib] = True
+        except OSError as e:
+            info[lib] = str(e)[:80]
+    t0 = time.time()
+    r = rollout.Runner(suite, task_id, n_envs, condition, episode_length=episode_length, use_async=use_async)
+    info["load_s"] = round(time.time() - t0, 1)
+    if not use_async:
+        try:
+            info["gl_context"] = type(r.vec_env.envs[0].unwrapped._env.sim._render_context_offscreen.gl_ctx).__module__
+        except Exception as e:
+            info["gl_context"] = repr(e)[:120]
+    out = r.run_batch(list(range(n_envs)), seed=0)
+    r.close()
+    return {**info, "use_async": use_async, "n_envs": n_envs, **_summary(out)}
+
+
+@app.function(**KW)
+def official(extra: list[str]) -> dict:
+    """Run LeRobot's own lerobot-eval, for comparison with rollout.py."""
+    import glob
+    import subprocess
+
+    cmd = ["lerobot-eval", "--policy.path=HuggingFaceVLA/smolvla_libero", "--env.type=libero",
+           "--output_dir=/tmp/eval", "--env.max_parallel_tasks=1", *extra]
+    p = subprocess.run(cmd, capture_output=True, text=True)
+    pkgs = subprocess.run(["pip", "list"], capture_output=True, text=True).stdout
+    vers = [l for l in pkgs.splitlines() if l.split(" ")[0].lower() in ("mujoco", "torch", "robosuite", "lerobot", "hf-libero", "transformers")]
+    files = glob.glob("/tmp/eval/eval_info.json")
+    info = json.load(open(files[0])) if files else None
+    return {"cmd": " ".join(extra), "rc": p.returncode, "versions": vers,
+            "info": info, "stderr_tail": p.stderr[-1500:] if p.returncode else ""}
 
 
 @app.function(**KW, max_containers=MAX_CONTAINERS)
@@ -156,7 +206,19 @@ def main(
     tasks: str = "",
     run: str = "",
 ):
-    if stage == "smoke":
+    if stage == "official":
+        base = [f"--env.task={suite}", f"--env.task_ids=[{task_id}]"]
+        calls = [
+            [*base, "--eval.batch_size=10", "--eval.n_episodes=10"],
+            [*base, "--eval.batch_size=1", "--eval.n_episodes=3"],
+        ]
+        for res in official.map(calls, return_exceptions=True):
+            print(json.dumps(res if isinstance(res, dict) else {"error": repr(res)[:1500]}, default=str)[:4000])
+    elif stage == "diag":
+        calls = [(suite, task_id, n, 40, a) for n in (2, 10) for a in (False, True)]
+        for res in diag.starmap(calls, return_exceptions=True):
+            print(json.dumps(res if isinstance(res, dict) else {"error": repr(res)[:1500]}))
+    elif stage == "smoke":
         print(json.dumps(smoke.remote(condition, suite, task_id, n_envs), indent=2))
     elif stage == "collect":
         spec = PLANS[plan]

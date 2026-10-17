@@ -1,9 +1,9 @@
 # Pre-registration
 
-**Status: DRAFT.** It freezes, gets committed, and is pushed before the main collection
-launches. The smoke runs only check plumbing and task success. No monitor is fit and no
-monitor score is computed on real rollouts before the freeze. Any later change goes in the
-change log at the bottom, with its date and reason.
+**Status: FROZEN 2026-10-17, before the main collection.** The smoke runs (listed in
+NOTES.md) only checked plumbing, quantization, timing and task success. No monitor was fit
+and no monitor score was computed on real rollouts before the freeze. Any later change goes
+in the change log at the bottom, with its date and reason.
 
 ## Question
 
@@ -90,6 +90,10 @@ All four are fixed in `monitors.py`, which is committed with this file.
   - Prediction: the reverse ordering holds for `act_cons`.
   - Reported with bootstrap CIs (episodes resampled within condition, 10,000 draws).
     The claim is directional, with no significance threshold.
+- **H2b (secondary):**
+  - Under `steps2`, the action-expert state is read at the last of 2 Euler steps instead
+    of the last of 10, so its input timestep changes.
+  - Prediction: |FAR(`steps2`) − FAR(`ref`)| > |FAR(`w8`) − FAR(`ref`)| for `probe_exp`.
 - **H3 (secondary):**
   - `w8` changes no monitor's FAR by more than 0.05 from `ref`.
   - |ΔAUROC| ≤ 0.05 under `w8` for every monitor.
@@ -100,9 +104,11 @@ All four are fixed in `monitors.py`, which is committed with this file.
 
 ## Decision rules
 
-- **Gate 1:** `ref` success on libero_10 must fall within 15 points of SmolVLA's reported
-  LIBERO-Long result (≈71%), or the pipeline is treated as broken. The test is ≥ 2
-  batches of 10 episodes.
+- **Gate 1 (pipeline):** `rollout.py` must reproduce LeRobot's own `lerobot-eval` on the
+  same task and init states. It passed before the freeze (NOTES.md). Neither tool
+  reaches the paper's 71% on this setup: community reproductions of this checkpoint
+  report 56% on LIBERO-Long (lerobot #3264). So the paper's number is not a gate. The
+  reference success rate is reported as measured.
 - **Gate 2:** if a compressed condition's task success falls below half of `ref`'s, it is
   still run and reported. It is flagged as outside the "success unchanged" regime the
   question targets.
@@ -113,3 +119,8 @@ All four are fixed in `monitors.py`, which is committed with this file.
 ## Change log
 
 - 2026-10-17: draft written during the smoke runs.
+- 2026-10-17, before the freeze: Gate 1 changed from "within 15 points of the paper's
+  71%" to "matches `lerobot-eval`". The reason is that the official tool itself scores
+  6/10 on LIBERO-Spatial task 0, where the paper implies about 90%. This is a known
+  reproduction gap (lerobot #3264, #4614) and not a pipeline bug. H2b added. Both
+  changes were made before any libero_10 data beyond the 2-episode plumbing run.

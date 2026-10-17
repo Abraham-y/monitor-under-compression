@@ -41,7 +41,7 @@ QUANT_ROOT = "model.vlm_with_expert"
 W4_GROUP = 128
 
 
-def build_cfg(suite: str, task_id: int, n_envs: int, condition: str):
+def build_cfg(suite: str, task_id: int, n_envs: int, condition: str, episode_length: int | None = None):
     """An EvalPipelineConfig built exactly as `lerobot-eval` would build it from the CLI."""
     from lerobot.configs import parser
     from lerobot.configs.eval import EvalPipelineConfig
@@ -59,10 +59,16 @@ def build_cfg(suite: str, task_id: int, n_envs: int, condition: str):
     ]
     if condition == "steps2":
         argv.append("--policy.num_steps=2")
+    if episode_length:
+        argv.append(f"--env.episode_length={episode_length}")
 
-    @parser.wrap()
-    def _get(cfg: EvalPipelineConfig):
+    def _get(cfg):
         return cfg
+
+    # parser.wrap reads the real class from the annotation; this module's postponed
+    # annotations would hand it a string.
+    _get.__annotations__ = {"cfg": EvalPipelineConfig}
+    _get = parser.wrap()(_get)
 
     old = sys.argv
     sys.argv = argv
@@ -158,6 +164,7 @@ class Recorder:
     h_vlm: list
     h_exp: list
     chunk: list
+    policy_s: float = 0.0
 
     @classmethod
     def attach(cls, policy: nn.Module) -> "Recorder":
@@ -189,7 +196,11 @@ class Recorder:
         orig_sample = model.sample_actions
 
         def sample_actions(*a, **k):
+            torch.cuda.synchronize()
+            t0 = time.perf_counter()
             actions = orig_sample(*a, **k)
+            torch.cuda.synchronize()
+            rec.policy_s += time.perf_counter() - t0
             rec.h_exp.append(state["exp"].cpu().numpy().astype(np.float16))
             rec.chunk.append(actions[:, :, :7].float().cpu().numpy().astype(np.float16))
             return actions
@@ -200,6 +211,7 @@ class Recorder:
         return rec
 
     def clear(self):
+        self.policy_s = 0.0
         self.h_vlm.clear()
         self.h_exp.clear()
         self.chunk.clear()
@@ -219,18 +231,19 @@ class Recorder:
 class Runner:
     """Loads the policy once for (suite, task, condition); runs batches of init states."""
 
-    def __init__(self, suite: str, task_id: int, n_envs: int, condition: str):
+    def __init__(self, suite: str, task_id: int, n_envs: int, condition: str,
+                 episode_length: int | None = None, use_async: bool = False):
         assert condition in CONDITIONS, condition
         from lerobot.envs import make_env, make_env_pre_post_processors
         from lerobot.policies import make_policy, make_pre_post_processors
 
         self.suite, self.task_id, self.n_envs, self.condition = suite, task_id, n_envs, condition
-        cfg = build_cfg(suite, task_id, n_envs, condition)
+        cfg = build_cfg(suite, task_id, n_envs, condition, episode_length)
         self.cfg = cfg
         torch.backends.cudnn.benchmark = True
         torch.backends.cuda.matmul.allow_tf32 = True
 
-        envs = make_env(cfg.env, n_envs=n_envs, use_async_envs=False)
+        envs = make_env(cfg.env, n_envs=n_envs, use_async_envs=use_async)
         self.vec_env = envs[suite][task_id]
         self.task_description = list(self.vec_env.call("task_description"))[0]
 
@@ -291,6 +304,7 @@ class Runner:
             "init_ids": np.array(init_ids, dtype=np.int32),
             "seed": np.int64(seed),
             "wall_s": np.float64(wall),
+            "policy_s": np.float64(self.rec.policy_s),
             "n_policy_calls": np.int64(T),
         }
 
