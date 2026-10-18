@@ -26,3 +26,14 @@
   Same rate as the official evaluator, so the pipeline is not the cause of the gap to the
   paper. Versions: lerobot 0.6.1, mujoco 3.8.1, robosuite 1.4.0, torch 2.11.0.
 - libero_10 task 0, ref, 2 episodes: 0/2 (520 steps each).
+
+## Main collection (launched 2026-10-18 12:12 PDT, after the user approved ~$25-35)
+
+- 40 jobs (ref x10 tasks with 5 batches each; w8/w4/steps2 x10 tasks with 2 batches), L4, 10 at a time.
+- ~7.7-8.3 min per batch of 10 libero_10 episodes; policy 0.61 s/call.
+- Post-freeze code changes, none touching pre-registered analyses:
+  - monitors.py: MAHA_PCS readable from env MUC_MAHA_PCS (default 64 unchanged), for tests.
+  - analyze.py: exploratory `t0_shift` (labelled as such): step 0 sees the same observation
+    in every condition, so h[0] differences measure representation shift for an identical
+    input; also a sanity check that steps2 leaves h_vlm[0] unchanged.
+  - figures.py, tests/test_pipeline.py added.

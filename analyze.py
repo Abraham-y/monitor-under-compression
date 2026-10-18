@@ -84,8 +84,55 @@ def main():
         res["monitors"][name] = per
         print(name, json.dumps({c: {k: per[c][k] for k in ("far", "tpr", "auroc")} for c in CONDITIONS if c in per}))
 
+    res["exploratory_t0_shift"] = t0_shift(eps, mons)
+    print("t0 shift", json.dumps(res["exploratory_t0_shift"], default=float))
+
     (out_dir / "results.json").write_text(json.dumps(res, indent=2, default=float))
     write_table(res, out_dir / "table.md")
+
+
+def t0_shift(eps, mons) -> dict:
+    """Exploratory (not pre-registered): representation shift for an identical input.
+
+    Step 0 of an episode sees the same observation in every condition (same seed and
+    init state, deterministic reset), so h[0] differences isolate what compression does
+    to the representation itself. Distances are reported relative to the spread of ref
+    h[0] across init states within the same task.
+    """
+    ref = {(e.task_id, e.init): e for e in eps if e.condition == "ref"}
+    out = {}
+    for key in ("h_vlm", "h_exp"):
+        spread = []
+        for t in {e.task_id for e in ref.values()}:
+            H = np.stack([getattr(e, key)[0].astype(np.float32) for (tt, _), e in ref.items() if tt == t])
+            d = np.linalg.norm(H[:, None] - H[None], axis=-1)
+            spread.append(d[np.triu_indices(len(H), 1)].mean())
+        spread = float(np.mean(spread))
+        for c in CONDITIONS[1:]:
+            ds, cos = [], []
+            for e in eps:
+                if e.condition != c or (e.task_id, e.init) not in ref:
+                    continue
+                a = getattr(ref[(e.task_id, e.init)], key)[0].astype(np.float32)
+                b = getattr(e, key)[0].astype(np.float32)
+                ds.append(np.linalg.norm(a - b))
+                cos.append(float(a @ b / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-8)))
+            if ds:
+                out.setdefault(c, {})[key] = {"rel_dist": float(np.mean(ds)) / spread, "cos": float(np.mean(cos)),
+                                              "n": len(ds)}
+        out.setdefault("ref_spread", {})[key] = spread
+    # how far each monitor's first-step score moves, in units of the ref test-score SD
+    for name, mon in mons.items():
+        if name == "act_cons":
+            continue
+        s_ref = {(e.task_id, e.init): float(mon.steps(e)[0]) for e in ref.values() if e.init in M.TEST}
+        sd = float(np.std(list(s_ref.values())))
+        for c in CONDITIONS[1:]:
+            d = [float(mon.steps(e)[0]) - s_ref[(e.task_id, e.init)] for e in eps
+                 if e.condition == c and (e.task_id, e.init) in s_ref]
+            if d:
+                out[c].setdefault("score_shift_sd", {})[name] = float(np.mean(d)) / (sd + 1e-8)
+    return out
 
 
 def write_table(res: dict, path: Path):

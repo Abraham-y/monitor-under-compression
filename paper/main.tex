@@ -38,7 +38,55 @@ still damages a fifth of an SAE's features~\citep{saequant}.
 We test this directly. %CONTRIBUTION
 
 \section{Setup}
-%SETUP
+\label{sec:setup}
+
+\paragraph{Policy and task.} We use SmolVLA~\citep{smolvla} (the public LIBERO checkpoint,
+${\sim}$450M parameters, SmolVLM2 backbone with a flow-matching action expert) through
+LeRobot's evaluation stack, with the checkpoint's own settings: 50-step action chunks,
+replanning every step, 10 Euler steps. We evaluate on LIBERO-Long~\citep{libero} (10
+tasks, 50 fixed initial states each, up to 520 steps), the suite where the policy fails
+most often. Our rollout driver reproduces LeRobot's \texttt{lerobot-eval} on matched
+tasks and initial states.
+
+\paragraph{Compression.} Four conditions: \textbf{ref}, the checkpoint as shipped;
+\textbf{int8 W}, round-to-nearest weight-only int8 with per-channel scales;
+\textbf{int4 W}, weight-only int4 with groups of 128 and zero points; and \textbf{2 flow
+steps}, Euler integration with 2 steps instead of 10 and the weights untouched. The
+quantizers cover all 521 linear layers of the vision encoder, language model and action
+expert (508M parameters). The policy's small projection heads stay in full precision.
+Quantization is simulated (quantize, then dequantize), so it reproduces the numerics of
+an int8/int4 kernel but not its speed. We check that every quantized group holds at most
+$2^b$ distinct values, after a recent report found that ``INT8'' VLA artifacts were in
+fact FP32~\citep{onnxsmolvla}. The 2-step condition is a real speedup: it cuts policy time
+per call by $3.2\times$ on an L4.
+
+\paragraph{Monitors.} Four monitors, one from each family in recent work, are each fit
+once on reference rollouts and never refit:
+\begin{itemize}
+  \item \textbf{probe (VLM state):} a logistic probe on the VLM's mean-pooled final-layer
+  state, trained on per-step states labeled with the episode outcome (SAFE~\citep{safe});
+  \item \textbf{probe (expert state):} the same probe on the action expert's state at the
+  last denoising step;
+  \item \textbf{Mahalanobis (VLM):} distance of the VLM state from successful training
+  steps, using 64 principal components and a Ledoit--Wolf covariance. It needs no
+  failure labels (VLA-FAIL~\citep{vlafail}, FIPER~\citep{fiper});
+  \item \textbf{action consistency:} disagreement between consecutive action chunks on
+  their 49 shared steps. It needs no training (Sentinel~\citep{sentinel}, VLA-FAIL).
+\end{itemize}
+Each monitor gives a per-step score, and the episode score at step $t$ is its running
+mean $S_t$. An alarm fires at the first $t\ge 10$ with $S_t>\tau$. The threshold $\tau$ is
+the conformal $(1-\alpha)$ quantile, with $\alpha=0.1$, of $\max_{t\ge10} S_t$ over
+successful \emph{reference} calibration episodes~\citep{conformal}. If deployment episodes
+were exchangeable with the calibration episodes, a successful episode would raise a false
+alarm with probability at most $\alpha$. Compression is exactly the change that breaks
+that assumption.
+
+\paragraph{Splits and protocol.} Splits are by initial state and are shared across
+tasks. States 0--29 are reference-only and train the monitors. States 30--39 are
+calibration. States 40--49 are the test set, and every number we report comes from them.
+That gives 500 reference episodes and 200 per compressed condition. Hypotheses, splits
+and analyses were pre-registered before data collection; we mark anything else as
+exploratory.
 
 \section{Results}
 %RESULTS

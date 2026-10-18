@@ -40,7 +40,7 @@ ALPHA = 0.10
 BURN_IN = 10
 STEP_STRIDE = 4  # subsample steps when fitting (consecutive steps are near-duplicates)
 C_GRID = (1e-3, 1e-2, 1e-1, 1.0)
-MAHA_PCS = 64
+MAHA_PCS = int(__import__("os").environ.get("MUC_MAHA_PCS", 64))
 TRAIN, CALIB, TEST = range(0, 30), range(30, 40), range(40, 50)
 MONITORS = ("probe_vlm", "probe_exp", "maha_vlm", "act_cons")
 
