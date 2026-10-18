@@ -37,3 +37,7 @@
     in every condition, so h[0] differences measure representation shift for an identical
     input; also a sanity check that steps2 leaves h_vlm[0] unchanged.
   - figures.py, tests/test_pipeline.py added.
+- 12:55: all 30 compressed (condition, task) inputs of the first launch failed at
+  `vol.reload()` ("open files preventing the operation: hf/xet/logs/..."), before any
+  rollout. Ref inputs unaffected. reload is now best-effort; compressed conditions
+  relaunched as a separate app (`--conditions w8,w4,steps2`). No data lost or duplicated.

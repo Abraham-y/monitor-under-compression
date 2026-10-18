@@ -171,7 +171,12 @@ def official(extra: list[str]) -> dict:
 def collect(run: str, condition: str, suite: str, task_id: int, inits: list[int], seeds: list[int]) -> dict:
     import rollout
 
-    vol.reload()
+    try:
+        # A container reused from an earlier input still holds HF cache files open, and
+        # reload refuses then; the skip check only needs files this job wrote itself.
+        vol.reload()
+    except RuntimeError as e:
+        print(f"vol.reload skipped: {e}", flush=True)
     todo = []
     for seed in seeds:
         for ids in _batches(inits, BATCH):

@@ -91,8 +91,42 @@ exploratory.
 \section{Results}
 %RESULTS
 
+\section{Related work}
+
+\paragraph{VLA failure monitors.} SAFE~\citep{safe} probes VLA hidden states and calibrates
+alarms with functional conformal prediction. SAFECAST~\citep{safecast} shows that such
+thresholds go wrong under deployment-time \emph{input} shift (clutter, lighting,
+instructions) and adds contrast sets to calibration. VLA-FAIL~\citep{vlafail} pairs a
+last-layer Mahalanobis detector with action-chunk consistency. FIPER~\citep{fiper} combines
+embedding novelty with action-chunk entropy, and Sentinel~\citep{sentinel} uses temporal
+consistency together with a VLM progress check. RESCUE~\citep{rescue} argues that monitors
+should be judged by the interventions they trigger. All of these evaluate a monitor on the
+policy it was fit to. We hold the inputs fixed and change the policy underneath the
+monitor.
+
+\paragraph{VLA compression.} Post-training quantization of VLAs has been benchmarked at
+scale~\citep{vlaquantbench}, alongside new quantizers~\citep{quantvla} and studies of what
+compression does to motion quality~\citep{embodiedeff}. These studies measure success,
+latency and trajectory metrics; none examines the monitors deployed alongside the policy.
+In language models, \citet{saequant} shows that quantization can damage SAE features
+while perplexity is unchanged. We ask the analogous question for the monitors a robot
+actually acts on.
+
 \section{Discussion and limitations}
 %DISCUSSION
+
+\paragraph{Limitations.}
+\begin{itemize}
+  \item The study covers one policy, one benchmark suite and one seed. Each compressed
+  condition has 100 test episodes, so false-alarm rates carry CIs of roughly $\pm0.1$.
+  \item Weight quantization is simulated. It reproduces the numerics of int8/int4
+  kernels but not their latency, and real kernels can add their own rounding.
+  \item Our monitors are compact reimplementations of each family, not the published
+  systems. For example, we use a running-mean score and a single conformal threshold
+  where SAFE uses functional conformal bands.
+  \item The policy scores lower in our simulator version than in its paper. LeRobot's own
+  evaluator shows the same gap on matched episodes.
+\end{itemize}
 
 \bibliography{refs}
 
