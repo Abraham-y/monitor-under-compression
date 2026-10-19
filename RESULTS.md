@@ -1,85 +1,67 @@
 # Results (run `main`, seed 0, LIBERO-Long, SmolVLA)
 
-Numbers: `results/main/results.json`, `results/main/table.md` (pre-registered analysis,
-`analyze.py`), `results/main/explore.json` (exploratory, `explore.py`). Figures:
-`paper/fig_main.pdf`, `paper/fig_scores.pdf`.
+Sources:
+- `results/main/table.md` and `results.json`: the pre-registered analysis (`analyze.py`).
+- `results/main/robustness.md` and `.json`: review-driven robustness analysis (`robustness.py`, exploratory).
+- `results/main/explore.json`: exploratory (`explore.py`).
+- Figure 1: `paper/fig_main.pdf`. Paper: `paper/main.pdf`.
 
-## Task success (test split, 100 episodes each)
+## Conditions
 
-| ref | int8 W | int4 W | 2 flow steps |
-|---|---|---|---|
-| 0.27 | 0.30 | **0.01** | 0.32 |
+The test split is 100 episodes per condition: inits 40–49 × 10 tasks.
 
-Reference over all 500 episodes: 0.32. Tasks 0 and 4 never succeed (0/50 each).
-int4 W falls below half of ref, so Gate 2 flags it as outside the "success unchanged"
-regime.
+| condition | what it is | test success |
+|---|---|---|
+| ref | the checkpoint as shipped | 0.27 (0.32 over all 500) |
+| int8 (`w8`) | RTN per-channel | 0.30 |
+| 2 flow steps (`steps2`) | 2 Euler steps instead of 10; policy 0.81 → 0.32 s/call | 0.32 |
+| int4-g32 (`w4g32`) | RTN groups of 32, all 521 layers; post hoc, exploratory | 0.05 |
+| int4-coarse (`w4`) | pre-registered as "g128"; actually per-row for 62% of params (see NOTES) | 0.01 |
 
-## Monitors on the reference policy (the control)
+`w4nv` was stopped after review found the per-row fallback, and is not analysed.
 
-| monitor | AUROC | TPR | FAR (α = 0.10) |
-|---|---|---|---|
-| probe_vlm | 0.95 | 0.67 | 0.04 |
-| probe_exp | 0.95 | 0.78 | 0.11 |
-| maha_vlm | 0.85 | 0.32 | 0.07 |
-| act_cons | 0.77 | 0.49 | 0.15 |
+## Main findings (inherited = ref-calibrated threshold, α = 0.1)
 
-All four FARs are consistent with the conformal guarantee.
+1. **Step reduction disarms the action-side monitors at unchanged success.**
+   - act_cons TPR falls from 0.49 to **0.00** (0/68). McNemar 30 lost / 0 gained, p = 2e-9. ΔTPR −0.49 [−0.91, −0.25], bootstrapping tasks and tau together.
+   - probe_exp TPR falls from 0.78 to 0.57 (14/0, p = 1e-4). Its median alarm moves from step 10 to step 124. This is threshold-sensitive (it vanishes at α = 0.05), so it is reported as directional.
+   - probe_vlm (0.66 vs 0.67) and maha_vlm (0.32 vs 0.32) are unchanged. At step 0 the VLM state is bit-identical to ref on the matched tasks.
+2. **Calibration, not information.**
+   - act_cons disagreement is rescaled by a uniform 0.42 (IQR 0.40–0.44).
+   - AUROC 0.77 → 0.72; oracle TPR at FAR ≤ 0.1 0.44 → 0.34; within-task AUROC 0.89 → 0.84.
+   - Recalibrating on own successes recovers 0.26 TPR at FAR 0.03.
+   - FAR *falls*: act_cons 0.15 → 0, probe_exp 0.11 → 0. A conformal check on successes passes while detection collapses.
+3. **Quantization dose-response on the VLM probe.**
+
+   | | int8 | int4-g32 | int4-coarse |
+   |---|---|---|---|
+   | step-0 score shift on identical inputs | −0.29 SD (100% toward "safe") | −2.30 SD | −4.58 SD |
+   | probe_vlm TPR (ref 0.67) | 0.54 (13/3, p = 0.02) | 0.09 (39/0) | 0.00 (0/99) |
+
+   - maha_vlm alarms on every int4 episode, successes included, so it detects the compression rather than the failures.
 
 ## Pre-registered hypotheses
 
-- **H1** (w4 FAR > α for a hidden-state monitor): **not testable as specified.** int4
-  left 1 successful test episode. maha_vlm alarmed on it (FAR 1/1, p = 0.10).
-- **H2** (|ΔFAR| smaller under steps2 than w4 for VLM monitors, reversed for act_cons):
-  **not evaluable**, because w4's FAR rests on n = 1. Under steps2 the VLM-side monitors'
-  FAR is unchanged (maha −0.01, probe_vlm −0.04). act_cons FAR falls by 0.15 (95% CI
-  −0.30 to −0.04).
-- **H2b** (probe_exp |ΔFAR(steps2)| > |ΔFAR(w8)|): **supported, directionally.** The
-  values are −0.11 vs −0.01.
-- **H3** (w8 changes FAR by ≤ 0.05 and AUROC by ≤ 0.05): FAR holds for all four
-  monitors. AUROC holds for 3 of 4; act_cons drops 0.08 (0.77 → 0.69).
+- **H1** (w4 FAR > α): untestable. int4-coarse left 1 successful test episode.
+- **H2** (w4 vs steps2 contrast): untestable, for the same reason.
+- **H2b** (probe_exp |ΔFAR| larger under steps2 than under w8): supported (−0.11 vs −0.01).
+- **H3** (w8 changes FAR and AUROC by ≤ 0.05): FAR holds for all 4 monitors. AUROC holds for 3/4; act_cons drops 0.08. Equivalence at ±0.05 cannot be established with n = 100.
+- The detection changes were a pre-registered outcome, but no hypothesis predicted them.
 
-## What actually moved: detection, not false alarms
+## Robustness (exploratory; see robustness.md)
 
-TPR is a pre-registered outcome but no hypothesis predicted these changes. All values use
-the reference-calibrated threshold.
+- **Episode length:** counting only alarms before step 200 lowers ref TPRs (probe_vlm 0.48, act_cons 0.27). Both zeros stay zero.
+- **Task identity:** within-task ref AUROC is 0.96 (probe_vlm) and 0.98 (probe_exp). Excluding the two never-succeeding tasks changes no conclusion.
+- **Matched step-0 inputs:** tasks 3, 8 and 9 have cuDNN-autotuning differences in ref's step-0 state, so they are excluded from same-input comparisons. The headline numbers hold without them.
 
-- **2 flow steps** is a 3.2x faster policy with unchanged success:
-  - act_cons TPR falls from 0.49 to **0.00** [0.00, 0.05] across 68 failures. Every
-    failed episode's score sits below τ: the median is 0.13 against τ = 0.37.
-  - probe_exp TPR falls from 0.78 to 0.57, and its median alarm comes later (2% → 24% of
-    the episode).
-  - The VLM-state monitors are unchanged: probe_vlm 0.66 vs 0.67, maha 0.32 vs 0.32.
-  - Mechanism: the VLM prefix is untouched (exploratory t0 shift 0.16, the cross-process
-    noise floor), while the expert state moves by 2.4 ref-spreads and the action chunks
-    get smoother.
-- **int4 W** (policy collapses):
-  - probe_vlm, the best monitor on ref (AUROC 0.95), raises **0 alarms on 99 failed
-    episodes** (TPR 0.00 [0.00, 0.04]). Its failure-episode scores have median −8.9
-    against τ = 2.39. On identical step-0 inputs its score moves −4.9 ref-SD toward
-    "success".
-  - maha_vlm alarms on everything (TPR 1.00), which is correct here.
-  - probe_exp TPR is 0.92 and act_cons is 0.68.
-- **int8 W**: everything stays within noise except a probe_vlm TPR dip (0.67 → 0.54) and
-  the act_cons AUROC drop noted above.
-- **Recalibrating on the compressed policy's own successes** partly restores the
-  monitors under steps2 (act_cons TPR 0.26 at FAR 0.03; probe_exp 0.66 at 0.06). It is
-  impossible under w4, which has no successes to calibrate on.
+## Relation to concurrent work
 
-## Exploratory
+The concurrent work is an anonymous NeurIPS 2026 workshop submission (OpenReview atOkXTzFCL). It replays fp32 SmolVLA observations open loop through per-channel int4/int8 weights, uses probes only, and calibrates on failures. It finds coverage shifts at unchanged AUROC and repairs them by ridge realignment.
 
-- **Excluding the two never-succeeding tasks** (so the probes can't just recognise task
-  identity) changes none of the conclusions:
-  - probe AUROCs on ref are 0.93.
-  - probe_vlm TPR under w4 is still 0.
-  - act_cons TPR under steps2 is still 0.
-- **t0 representation shift** (identical step-0 input, relative to the ref spread across
-  init states):
+This work differs in four ways:
+- the compressed policies run closed loop;
+- it includes step reduction;
+- it uses non-probe monitors;
+- it calibrates on successes (FAR-bounding), which turns the shift into silent misses.
 
-  | condition | h_vlm | h_exp |
-  |---|---|---|
-  | w8 | 0.36 | 0.20 |
-  | w4 | 2.70 | 1.82 |
-  | steps2 | 0.16 | 2.39 |
-
-  steps2's h_vlm shift is not exactly zero. It is probably kernel nondeterminism across
-  processes; we treat it as the noise floor.
+Both works agree on the rank-preserving, threshold-breaking mechanism.

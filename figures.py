@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parent
 CONDS = ("ref", "w8", "steps2", "w4g32", "w4")
 COND_LABEL = {"ref": "reference", "w8": "int8", "steps2": "2 flow steps", "w4g32": "int4-g32",
               "w4": "int4-coarse"}
+SHORT = {"ref": "ref", "w8": "int8", "steps2": "2 steps", "w4g32": "int4-g32", "w4": "int4-c"}
 COLORS = {"ref": "#4a4a4a", "w8": "#5b8fd6", "steps2": "#3f9e6e", "w4g32": "#e09a3c", "w4": "#d0573a"}
 MONS = ("act_cons", "probe_exp", "probe_vlm", "maha_vlm")
 MON_LABEL = {"act_cons": "action\nconsist.", "probe_exp": "probe\n(expert)", "probe_vlm": "probe\n(VLM)",
@@ -37,14 +38,14 @@ def main():
     rob = json.loads((ROOT / "results" / args.run / "robustness.json").read_text())
     res = json.loads((ROOT / "results" / args.run / "results.json").read_text())
     conds = [c for c in CONDS if c in rob["conditions"] and c in res["success"]]
-    fig, axes = plt.subplots(1, 3, figsize=(6.9, 1.85), gridspec_kw={"width_ratios": [0.9, 2.6, 1.5]})
+    fig, axes = plt.subplots(1, 3, figsize=(6.9, 2.0), gridspec_kw={"width_ratios": [0.9, 2.6, 1.5]})
 
     ax = axes[0]
     s = np.array([res["success"][c]["test"]["success"] for c in conds])
     ci = np.array([res["success"][c]["test"]["ci"] for c in conds])
     ax.bar(range(len(conds)), s, color=[COLORS[c] for c in conds],
            yerr=[s - ci[:, 0], ci[:, 1] - s], error_kw={"lw": 0.6, "capsize": 1.2})
-    ax.set_xticks(range(len(conds)), [COND_LABEL[c] for c in conds], rotation=40, ha="right")
+    ax.set_xticks(range(len(conds)), [SHORT[c] for c in conds], rotation=50, ha="right", rotation_mode="anchor")
     ax.set_ylabel("task success")
     ax.set_ylim(0, 1)
     ax.set_title("(a) policy", fontsize=7.5)
@@ -80,7 +81,7 @@ def main():
         jit = np.random.default_rng(j).uniform(-0.18, 0.18, len(sc))
         ax.scatter(np.full(len(sc), j) + jit, sc, s=2.5, color=COLORS[c], alpha=0.6, lw=0)
     ax.axhline(tau, color="k", ls="--", lw=0.6)
-    ax.set_xticks(range(len(conds)), [COND_LABEL[c] for c in conds], rotation=40, ha="right")
+    ax.set_xticks(range(len(conds)), [SHORT[c] for c in conds], rotation=50, ha="right", rotation_mode="anchor")
     ax.set_ylabel("episode score,\nfailed episodes")
     ax.set_title("(c) action consistency", fontsize=7.5)
 

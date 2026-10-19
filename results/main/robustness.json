@@ -4,6 +4,7 @@
     "ref",
     "w8",
     "steps2",
+    "w4g32",
     "w4"
   ],
   "table": {
@@ -52,6 +53,21 @@
         "oracle_tpr": 0.8676470588235294,
         "within_task_auroc": 0.9325396825396826,
         "n_tasks_within": 8
+      },
+      "w4g32": {
+        "n_success": 5,
+        "n_fail": 95,
+        "tpr": 0.09473684210526316,
+        "far": 0.0,
+        "tpr_h200": 0.07368421052631578,
+        "tpr_recal": 0.0,
+        "far_recal": 0.0,
+        "n_own_cal_success": 5,
+        "median_alarm_step": 70.0,
+        "auroc": NaN,
+        "oracle_tpr": NaN,
+        "within_task_auroc": NaN,
+        "n_tasks_within": 3
       },
       "w4": {
         "n_success": 1,
@@ -115,6 +131,21 @@
         "within_task_auroc": 0.8881944444444445,
         "n_tasks_within": 8
       },
+      "w4g32": {
+        "n_success": 5,
+        "n_fail": 95,
+        "tpr": 0.7578947368421053,
+        "far": 0.2,
+        "tpr_h200": 0.6210526315789474,
+        "tpr_recal": 0.0,
+        "far_recal": 0.0,
+        "n_own_cal_success": 5,
+        "median_alarm_step": 31.5,
+        "auroc": NaN,
+        "oracle_tpr": NaN,
+        "within_task_auroc": NaN,
+        "n_tasks_within": 3
+      },
       "w4": {
         "n_success": 1,
         "n_fail": 99,
@@ -176,6 +207,21 @@
         "oracle_tpr": 0.38235294117647056,
         "within_task_auroc": 0.7834027777777778,
         "n_tasks_within": 8
+      },
+      "w4g32": {
+        "n_success": 5,
+        "n_fail": 95,
+        "tpr": 1.0,
+        "far": 1.0,
+        "tpr_h200": 1.0,
+        "tpr_recal": 0.0,
+        "far_recal": 0.0,
+        "n_own_cal_success": 5,
+        "median_alarm_step": 10.0,
+        "auroc": NaN,
+        "oracle_tpr": NaN,
+        "within_task_auroc": NaN,
+        "n_tasks_within": 3
       },
       "w4": {
         "n_success": 1,
@@ -239,6 +285,21 @@
         "within_task_auroc": 0.8361954365079365,
         "n_tasks_within": 8
       },
+      "w4g32": {
+        "n_success": 5,
+        "n_fail": 95,
+        "tpr": 0.6947368421052632,
+        "far": 0.2,
+        "tpr_h200": 0.37894736842105264,
+        "tpr_recal": 0.0,
+        "far_recal": 0.0,
+        "n_own_cal_success": 5,
+        "median_alarm_step": 189.5,
+        "auroc": NaN,
+        "oracle_tpr": NaN,
+        "within_task_auroc": NaN,
+        "n_tasks_within": 3
+      },
       "w4": {
         "n_success": 1,
         "n_fail": 99,
@@ -280,11 +341,22 @@
         "gained": 3,
         "mcnemar_p": 0.34375
       },
+      "w4g32": {
+        "delta": -0.5764960346070657,
+        "ci95_task_and_tau_bootstrap": [
+          -0.8643944506192442,
+          -0.2813723644578313
+        ],
+        "mcnemar_pairs_both_fail": 70,
+        "lost": 39,
+        "gained": 0,
+        "mcnemar_p": 3.637978807091713e-12
+      },
       "w4": {
         "delta": -0.6712328767123288,
         "ci95_task_and_tau_bootstrap": [
-          -0.9487179487179487,
-          -0.3098049837486455
+          -0.9452054794520548,
+          -0.3142857142857143
         ],
         "mcnemar_pairs_both_fail": 73,
         "lost": 49,
@@ -296,8 +368,8 @@
       "w8": {
         "delta": 0.03346379647749509,
         "ci95_task_and_tau_bootstrap": [
-          -0.03207227439771334,
-          0.08702058916693063
+          -0.03333533653846153,
+          0.08823529411764708
         ],
         "mcnemar_pairs_both_fail": 67,
         "lost": 3,
@@ -307,19 +379,30 @@
       "steps2": {
         "delta": -0.20729250604351335,
         "ci95_task_and_tau_bootstrap": [
-          -0.4059097734097734,
-          0.09114095407700065
+          -0.40492336371168186,
+          0.08194622279129321
         ],
         "mcnemar_pairs_both_fail": 63,
         "lost": 14,
         "gained": 0,
         "mcnemar_p": 0.0001220703125
       },
+      "w4g32": {
+        "delta": -0.022927180966113903,
+        "ci95_task_and_tau_bootstrap": [
+          -0.12857919254658384,
+          0.21133115923674445
+        ],
+        "mcnemar_pairs_both_fail": 70,
+        "lost": 7,
+        "gained": 6,
+        "mcnemar_p": 1.0
+      },
       "w4": {
         "delta": 0.13837000138370004,
         "ci95_task_and_tau_bootstrap": [
-          -0.020202020202020166,
-          0.3131313885119855
+          -0.021646893646893667,
+          0.29977166276346606
         ],
         "mcnemar_pairs_both_fail": 73,
         "lost": 1,
@@ -331,8 +414,8 @@
       "w8": {
         "delta": -0.015068493150684925,
         "ci95_task_and_tau_bootstrap": [
-          -0.07821078431372548,
-          0.07575757575757575
+          -0.0778576763611975,
+          0.07848394843276038
         ],
         "mcnemar_pairs_both_fail": 67,
         "lost": 4,
@@ -342,19 +425,30 @@
       "steps2": {
         "delta": 0.008460918614020985,
         "ci95_task_and_tau_bootstrap": [
-          -0.049632478632478626,
-          0.13939518569953352
+          -0.048679567973881024,
+          0.13789880610136765
         ],
         "mcnemar_pairs_both_fail": 63,
         "lost": 3,
         "gained": 2,
         "mcnemar_p": 1.0
       },
+      "w4g32": {
+        "delta": 0.6849315068493151,
+        "ci95_task_and_tau_bootstrap": [
+          0.3378334503334503,
+          0.9710144927536232
+        ],
+        "mcnemar_pairs_both_fail": 70,
+        "lost": 0,
+        "gained": 48,
+        "mcnemar_p": 7.105427357601002e-15
+      },
       "w4": {
         "delta": 0.6849315068493151,
         "ci95_task_and_tau_bootstrap": [
-          0.3513338013338013,
-          0.9718407668231612
+          0.3378334503334503,
+          0.9710248447204969
         ],
         "mcnemar_pairs_both_fail": 73,
         "lost": 0,
@@ -366,8 +460,8 @@
       "w8": {
         "delta": -0.06457925636007827,
         "ci95_task_and_tau_bootstrap": [
-          -0.20763053467000836,
-          0.031021734531691346
+          -0.20759023153753026,
+          0.03833528390214444
         ],
         "mcnemar_pairs_both_fail": 67,
         "lost": 10,
@@ -377,19 +471,30 @@
       "steps2": {
         "delta": -0.4931506849315068,
         "ci95_task_and_tau_bootstrap": [
-          -0.9102564102564102,
-          -0.24614754098360656
+          -0.9166666666666666,
+          -0.25
         ],
         "mcnemar_pairs_both_fail": 63,
         "lost": 30,
         "gained": 0,
         "mcnemar_p": 1.862645149230957e-09
       },
+      "w4g32": {
+        "delta": 0.2015861571737564,
+        "ci95_task_and_tau_bootstrap": [
+          -0.04410053516068655,
+          0.40584420420514605
+        ],
+        "mcnemar_pairs_both_fail": 70,
+        "lost": 8,
+        "gained": 17,
+        "mcnemar_p": 0.10775214433670044
+      },
       "w4": {
         "delta": 0.18361699183616997,
         "ci95_task_and_tau_bootstrap": [
-          -0.1247132352941177,
-          0.3838480580452412
+          -0.11998879097093379,
+          0.3796515151515152
         ],
         "mcnemar_pairs_both_fail": 73,
         "lost": 4,
@@ -418,6 +523,11 @@
         "frac_toward_safe": 0.0,
         "n": 120
       },
+      "w4g32": {
+        "mean_shift_sd": -2.304403197335662,
+        "frac_toward_safe": 1.0,
+        "n": 120
+      },
       "w4": {
         "mean_shift_sd": -4.576779873159179,
         "frac_toward_safe": 1.0,
@@ -435,6 +545,11 @@
         "frac_toward_safe": 1.0,
         "n": 120
       },
+      "w4g32": {
+        "mean_shift_sd": 0.04567852799807449,
+        "frac_toward_safe": 0.4666666666666667,
+        "n": 120
+      },
       "w4": {
         "mean_shift_sd": 0.808180791104348,
         "frac_toward_safe": 0.008333333333333333,
@@ -449,6 +564,11 @@
       },
       "steps2": {
         "mean_shift_sd": 0.0,
+        "frac_toward_safe": 0.0,
+        "n": 120
+      },
+      "w4g32": {
+        "mean_shift_sd": 4.815577294882016,
         "frac_toward_safe": 0.0,
         "n": 120
       },
@@ -473,6 +593,14 @@
       "iqr": [
         0.3977483808994293,
         0.4393845200538635
+      ],
+      "n": 200
+    },
+    "w4g32": {
+      "median": 1.166415810585022,
+      "iqr": [
+        1.040372371673584,
+        1.3184616565704346
       ],
       "n": 200
     },

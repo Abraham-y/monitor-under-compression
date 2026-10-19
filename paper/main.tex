@@ -23,7 +23,8 @@ failures catches none of 68, and an expert-state probe loses a quarter of its de
 Monitors that read the vision-language backbone, which step reduction leaves untouched, are
 unaffected. Because conformal thresholds calibrated on successes bound only false alarms, the
 broken monitors pass a false-alarm check. Weight quantization shows the mirror image: it moves a
-backbone probe toward ``looks safe'' on identical inputs.
+backbone probe toward ``looks safe'' on identical inputs ($-0.3$, $-2.3$ and $-4.6$ SD at
+int8 and two int4 settings), while its detection falls from 0.67 to 0.54, 0.09 and 0.
 \end{abstract}
 
 \keywords{VLA, acceleration, quantization, runtime monitoring, conformal prediction}
@@ -57,9 +58,10 @@ Weight quantization does the reverse, pushing a backbone probe toward ``safe''.
 (${\sim}$450M parameters: a SmolVLM2 backbone and a flow-matching action expert). We run it in
 LeRobot with the checkpoint's own settings: 50-step chunks, replanning every step, and 10 Euler
 steps. We evaluate on LIBERO-Long~\citep{libero}: 10 tasks, 50 fixed initial states each, and
-at most 520 steps per episode. Our driver reproduces LeRobot's \texttt{lerobot-eval} on matched
-episodes. In our simulator version the reference policy succeeds in 32\% of 500 episodes. That
-is below the paper's 71\%, but LeRobot's own evaluator shows the same gap.
+at most 520 steps per episode. Our driver matches LeRobot's \texttt{lerobot-eval} success rate on the
+same task and initial states. In our simulator version the reference policy succeeds in 32\% of
+500 episodes. That is below the paper's 71\%; community reproductions of this checkpoint report
+56\%.
 
 \paragraph{Compression.} \textbf{2 flow steps} uses 2 Euler steps instead of 10, with weights
 unchanged; policy time per call (batch 10, L4) falls from 0.81\,s to 0.32\,s. \textbf{int8} is
@@ -77,7 +79,7 @@ values.
   \item \textbf{probe-expert}: the same probe on the action expert's state at the last denoising
   step.
   \item \textbf{Mahalanobis}: the distance of the backbone state from successful training steps,
-  using no failure labels (VLA-FAIL- and FIPER-style~\citep{vlafail,fiper}).
+  using no failure labels (VLA-FAIL-style~\citep{vlafail}).
   \item \textbf{action consistency}: the squared disagreement of consecutive chunks on their 49
   shared steps (Sentinel-style~\citep{sentinel}).
 \end{itemize}
@@ -117,9 +119,9 @@ succeeds as often as the reference, 32\% vs.\ 27\%.
   \item \textbf{Backbone monitors} are unaffected: probe-VLM catches 0.66 vs.\ 0.67, Mahalanobis
   0.32 vs.\ 0.32. Step reduction changes nothing upstream of the expert. On identical step-0
   observations, the backbone state is bit-identical to the
-  reference.\footnote{This holds on 6 tasks. On the other 3, per-process cuDNN autotuning slightly
-  perturbs the reference's step-0 state. We exclude those tasks from same-input comparisons;
-  without them the headline results are unchanged.}
+  reference.\footnote{This holds on 6 of 10 tasks, and on 19 of 20 episodes of a seventh. On the other 3,
+  per-process cuDNN autotuning slightly perturbs the reference's step-0 state. We exclude those
+  tasks from same-input comparisons; without them the headline results are unchanged.}
 \end{itemize}
 
 \begin{table}[t]
@@ -172,12 +174,9 @@ parameters.
     \toprule
     monitor & int8 & int4-g32 & int4-coarse & 2 flow steps \\
     \midrule
-    probe-VLM & $-0.29$ (100\%) & %W4G32VLM
-    & $-4.58$ (100\%) & $0$ (identical) \\
-    probe-expert & $+0.09$ (2\%) & %W4G32EXP
-    & $+0.81$ (1\%) & $-1.08$ (100\%) \\
-    Mahalanobis & $+0.05$ (31\%) & %W4G32MAHA
-    & $+3.98$ (0\%) & $0$ (identical) \\
+    probe-VLM & $-0.29$ (100\%) & $-2.30$ (100\%) & $-4.58$ (100\%) & $0$ (identical) \\
+    probe-expert & $+0.09$ (2\%) & $+0.05$ (47\%) & $+0.81$ (1\%) & $-1.08$ (100\%) \\
+    Mahalanobis & $+0.05$ (31\%) & $+4.82$ (0\%) & $+3.98$ (0\%) & $0$ (identical) \\
     \bottomrule
   \end{tabular}
   \vspace{-0.8em}
@@ -188,7 +187,8 @@ parameters.
   \item \textbf{int8} keeps task success (30\%) and false-alarm rates within 0.03. Yet on identical
   inputs it lowers probe-VLM's score in every episode (Table~\ref{tab:dose}). In closed loop the
   probe catches 0.54 of failures vs.\ 0.67 (13 lost, 3 gained, $p{=}0.02$; exploratory).
-  \item %W4G32TEXT
+  \item \textbf{int4-g32} cuts success to 5\% and shifts probe-VLM by $-2.3$ SD. The probe now
+  catches 9\% of failures (39 lost, 0 gained, $p{=}4{\times}10^{-12}$).
   \item \textbf{int4-coarse} collapses success to 1\% and shifts probe-VLM by $-4.6$ SD. The probe
   raises no alarm in any of 99 failed episodes. Mahalanobis alarms on every episode, successes
   included, so it detects the compression rather than the failures.
@@ -205,8 +205,9 @@ calls it safe.
   \item \textbf{Task identity.} Two tasks never succeed. Even so, within-task reference AUROC is .96
   for probe-VLM and .98 for probe-expert, and excluding those tasks changes no conclusion.
   \item \textbf{Pre-registration.} The primary hypotheses predicted more false alarms under int4.
-  They were untestable, because int4-coarse left one successful test episode. A secondary
-  hypothesis held: step reduction moves probe-expert more than int8 does. The detection changes
+  They were untestable, because int4-coarse left one successful test episode. Two secondary
+  hypotheses held: step reduction moves probe-expert more than int8 does, and int8 changes no
+  false-alarm rate by more than 0.05 (AUROC held for 3 of 4 monitors). The detection changes
   were a pre-registered outcome, but no hypothesis predicted them.
 \end{itemize}
 
@@ -215,8 +216,8 @@ calls it safe.
 \paragraph{Related work.} VLA monitors are evaluated on the policy they were fit
 to~\citep{safe,vlafail,fiper,sentinel,rescue}; SAFECAST~\citep{safecast} studies threshold drift
 under input shift. Language-model probes go stale under fine-tuning but mostly survive
-quantization by AUROC~\citep{duan}, and concurrent work finds VLA probe coverage collapses under
-int4 in an open-loop replay~\citep{rankpreserving}. Acceleration studies measure success, latency
+quantization by AUROC~\citep{duan}, and concurrent work finds VLA probe coverage shifts under int4 at
+unchanged AUROC in an open-loop replay~\citep{rankpreserving}. Acceleration studies measure success, latency
 and motion quality~\citep{vlaquantbench,quantvla,embodiedeff,care}, but not the shipped monitor.
 We add closed-loop policies, step reduction, non-probe monitors, and the one-sided calibration
 that turns a score shift into silent misses.
