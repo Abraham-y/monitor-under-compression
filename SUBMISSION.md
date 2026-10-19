@@ -9,11 +9,11 @@
 
 ## Title
 
-Recalibrate After You Accelerate: Few-Step Flow Sampling Silently Disarms a VLA's Failure Monitors
+Re-test After You Accelerate: Few-Step Flow Sampling Silently Disables a VLA Failure Monitor
 
 ## Abstract (plain text for the form)
 
-Robots controlled by vision-language-action (VLA) models are often paired with a failure monitor: a lightweight check that raises an alarm when a task seems to be going wrong. The monitor's alarm threshold is tuned on the model as originally trained, but the model that gets deployed is usually a sped-up version, so we ask whether the monitor still works after that swap. We tune four common monitors on the open SmolVLA model, then run sped-up versions of it in the LIBERO-Long simulator with the monitors left unchanged. The most practical speed-up, building each action plan in 2 refinement steps instead of 10, makes the model 2.5x faster and just as successful. Yet it disables a monitor that watches the robot's planned actions: it caught about half of all failures before and catches none after, because the faster model's successive plans agree more closely, which pulls its scores below the old threshold. Checking false alarms, the only thing the monitor's tuning guarantees, cannot reveal this, since false alarms drop to zero too. Compressing the model's weights has a mirror-image effect on a monitor that reads the model's visual and language features, pushing it toward reporting "safe" as compression increases. Whenever a robot policy is sped up, its monitor should be re-tuned and tested on real failures.
+Robots controlled by vision-language-action (VLA) models are often paired with a failure monitor: a lightweight check that raises an alarm when a task seems to be going wrong. The monitor's alarm threshold is tuned on the model as originally trained, but the deployed model is often a sped-up version, so we ask whether the monitor still works after that swap. We tune four common monitors on the open SmolVLA model, then run sped-up versions of it in the LIBERO-Long simulator with the monitors left unchanged. Building each action plan in 2 refinement steps instead of 10 makes the model 2.5x faster with no loss of success in our test (32% vs. 27%). Yet it disables a monitor that checks whether the robot's successive plans agree: that monitor caught about half of all failures before and catches none after, because the faster model's plans agree more closely, which pulls every score below the old threshold. Counting false alarms, the only thing the threshold's tuning guarantees, does not flag this, because false alarms drop to zero too. Rounding the model's weights to fewer bits nudges a different monitor, one that reads the model's visual and language features, toward reporting "safe". After any speed-up, a monitor should be re-tested; comparing its scores on successful runs before and after the speed-up already exposes the shift, without a single failure.
 
 ## Keywords
 
@@ -21,8 +21,8 @@ VLA, acceleration, flow matching, quantization, runtime monitoring, failure dete
 
 ## TL;DR
 
-Two-step flow sampling makes SmolVLA 2.5x faster at equal success, but silently disarms its
-action-side failure monitors. A false-alarm check passes while detection drops to zero.
+Two-step flow sampling makes SmolVLA 2.5x faster with no loss of success, but silently disables its
+action-consistency failure monitor: false alarms fall to zero, so the usual check sees an improvement.
 
 ## Checklist before submitting
 

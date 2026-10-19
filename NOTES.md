@@ -102,3 +102,19 @@ New analysis: `robustness.py` -> results/main/robustness.{json,md}.
   - Rewrote the intro, setup and results in plain language, defining each term at first use.
   - Dropped the separate quantization table and folded its numbers into the text.
   - Every number was re-checked against results/main. The previous version is tagged `pre-clarity-pass`.
+
+## 2026-10-19: second adversarial review of the plain-language draft (4 agents)
+
+**Reviewer 2: 3/5, about 4/5 with text fixes. Compliance passed** (anonymous PDF, 4 pages, no overfull boxes).
+
+**Applied, after re-verifying each finding myself** (scratchpad/verify_review.py):
+- **Title:** singular ("Disables a VLA Failure Monitor"); "Re-test After You Accelerate".
+- **Expert probe:** reported as suggestive. The task CI is [-0.41, +0.09], and the drop vanishes at alpha=0.05 (.33 vs .32, recomputed).
+- **Action consistency** stays 0 at alpha=0.05. On matched tasks it is 21/0 (p=1e-6).
+- **int8 VLM-probe drop:** not significant on the matched tasks (8/2, p=0.11). Now stated.
+- **New label-free check:** act_cons scores on successful runs shrink (median 0.27 -> 0.11; success-pair ratio 0.43). Added as the cheap re-test in the abstract and takeaways.
+- **Pre-registration accounting corrected:** H1 and H2 untestable; H2b held; H3 failed (act_cons AUROC -0.08). Exploratory analyses now labelled.
+- **Overclaims fixed:** "just as successful", "unchanged", "constant", "no learned parameters", "most practical", "brings back".
+- **Figure:** re-exported at its printed width (5.5 in, 7 pt+ text). The caption explains the intervals and that both int4 variants break the policy.
+- **Footer and PDF subject** now name the EEAI workshop.
+- **Citation fixes:** see references/CITATION_CHECK.md, second audit.

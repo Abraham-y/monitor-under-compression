@@ -30,3 +30,16 @@ openreview.net/forum?id=atOkXTzFCL in a browser.
 
 Uncited items still in `refs.bib` (`saequant`, `onnxsmolvla`) do not appear in the PDF, since
 BibTeX drops uncited entries.
+
+## Second audit (2026-10-19, adversarial citation reviewer, then re-verified by hand)
+
+**Fixed in the paper:**
+- **SAFE:** on flow-matching π0 it reads features "before being projected into the velocity field", i.e. the action expert (App. B.1). The *expert* probe is now the SAFE stand-in. The VLM probe is no longer attributed to SAFE.
+- **VLA-FAIL:** its Mahalanobis detector reads the action expert's last layer against training data. Ours is now "a backbone variant". The single-plan action-chunk consistency is VLA-FAIL's; Sentinel compares distributions of sampled plans (MMD/KL). Both are now cited accordingly.
+- **FIPER and Sentinel** are generative-policy monitors, not VLA-specific. The text now says "monitors for VLAs and other learned policies".
+- **RESCUE §IV-D:** a SAFE-style monitor's realized false-alarm rate is 26.5% at a 5% validation target. Now cited.
+- **CARE Table 5:** fewer flow steps for π0.5 are not certified on LIBERO-Long; the reference is retained. Now cited.
+- **LeRobot #3264:** the reproduction used `n_action_steps=10` (we replan every step). The footnote text now says so.
+- **Duan:** fine-tuning degrades AUROC (ranking), recoverably; quantization preserves it. The intro was corrected after we had wrongly said updates "mostly" leave ranking intact.
+- **Bib:** SAFE and FIPER are NeurIPS 2025; VLA-FAIL is CoRL 2026; title casing fixed.
+- **Removed** the unsupported "the monitor is typically carried over unchanged". Now: "none of these papers evaluates the monitor".
