@@ -87,3 +87,14 @@ Four read-only review agents. All four reproduced the headline numbers.
    - **F4 (w8)** weakened: probe_vlm TPR -0.13 (McNemar 13/3, p=0.02).
 
 New analysis: `robustness.py` -> results/main/robustness.{json,md}.
+
+## 2026-10-19: citation audit and abstract rewrite (user request)
+
+- Downloaded all 14 cited arXiv papers and the LeRobot issue, then checked every attributed claim: references/CITATION_CHECK.md.
+- Fixed:
+  - the Duan sentence (overstated);
+  - the LIBERO "50 initial states" attribution (it comes from the benchmark code, not the paper);
+  - "community reproductions" became "a public reproduction" (lerobot#3264, cited by URL).
+- Added: SAFE, FIPER and Sentinel all calibrate on successful rollouts, so the one-sided-calibration blind spot is standard practice.
+- The concurrent paper was checked against the user-pasted full text. It is not downloaded, because OpenReview's browser check blocks it.
+- Rewrote the abstract for newcomers. The main text still fits 4 pages exactly.

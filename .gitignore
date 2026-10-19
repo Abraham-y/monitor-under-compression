@@ -10,3 +10,5 @@ __pycache__/
 *.blg
 *.out
 paper/*.png
+references/pdfs/
+references/web/
