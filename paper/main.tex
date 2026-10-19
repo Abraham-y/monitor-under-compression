@@ -34,71 +34,76 @@ failures.
 
 \section{Introduction}
 
-A VLA policy that reaches a robot has usually been changed twice:
-\begin{itemize}
-  \item it has been \textbf{accelerated}, by quantization, pruning or fewer denoising
-  steps~\citep{vlaquantbench,quantvla,care};
-  \item it has been wrapped in a runtime \textbf{failure monitor}, whose alarm threshold is
-  calibrated on rollouts of the policy as trained~\citep{safe,safecast,vlafail,sentinel}.
-\end{itemize}
-The accelerated policy inherits the monitor. Acceleration papers check that task success holds,
-but a conformal threshold keeps its guarantee only while calibration and deployment scores are
-exchangeable~\citep{conformal}, and acceleration can break that without moving success. For
-language-model probes, model updates cause recoverable drift rather than erasing the signal, and
-quantization leaves probe AUROC largely intact~\citep{duan}. Concurrent work finds that a SmolVLA
-probe's scores shift while its AUROC holds under simulated int4, replaying the full-precision
-policy's observations open loop~\citep{rankpreserving}.
+A \emph{failure monitor} watches a robot while it works and raises an alarm when the current
+attempt looks likely to fail, so that a person or a fallback controller can step in. For robots
+driven by vision-language-action (VLA) models, a monitor is usually a small scoring function that
+reads either the model's internal state or the actions it plans. The function gives every step a
+score, and an alarm fires when the score crosses a threshold~\citep{safe,vlafail,fiper,sentinel}.
+The threshold is set from runs of the policy as trained. A common recipe uses only successful
+runs, choosing the threshold so that at most a fixed fraction of them, say 10\%, would ever raise
+an alarm~\citep{safe,fiper,sentinel}. This is a conformal guarantee~\citep{conformal}. It limits
+false alarms, but it holds only if the deployed policy behaves like the one the threshold was
+tuned on, and it promises nothing about how many failures get caught.
 
-We test the deployed configuration: compressed policies run closed loop, with four frozen
-monitors from different families. Step reduction disarms the action-side monitors and leaves
-the backbone monitors intact, at unchanged task success. Calibrating on successes hides the
-failure: when scores shift downward, the false-alarm rate improves while detection collapses.
-Weight quantization does the reverse, pushing a backbone probe toward ``safe''.
+The policy that is actually deployed is rarely the policy as trained. To run fast enough on a
+robot, it is sped up by storing its weights with fewer bits (quantization), by pruning, or by
+cutting the number of steps it takes to produce each action~\citep{vlaquantbench,quantvla,care}.
+Papers on these speed-ups check that the robot still succeeds, but the monitor is typically
+carried over unchanged. For language-model monitors, model updates cause recoverable drift rather
+than erasing the signal, and quantization leaves the monitor's ranking accuracy largely
+intact~\citep{duan}. Concurrent work finds that a VLA monitor's scores shift under 4-bit weights
+while its ranking holds, replaying the original policy's recorded observations through the
+compressed model~\citep{rankpreserving}.
+
+We test the deployed setup directly. We run each sped-up policy on the robot task itself, so the
+robot's own actions decide what it sees next, and four unchanged monitors watch it. With 2
+action-refinement steps instead of 10, the robot succeeds as often, but one monitor stops catching
+failures entirely and a second catches fewer; monitors that read the visual and language features
+are unaffected. The usual check cannot see this, because the broken monitors raise \emph{fewer}
+false alarms, the only thing their threshold controls. Weight compression does the opposite,
+pushing a monitor that reads the visual and language features toward reporting ``safe''.
 
 \section{Setup}
 \label{sec:setup}
 
-\paragraph{Policy and task.} We use SmolVLA~\citep{smolvla}, the public LIBERO checkpoint
-(${\sim}$450M parameters: a SmolVLM2 backbone and a flow-matching action expert). We run it in
-LeRobot with the checkpoint's own settings: 50-step chunks, replanning every step, and 10 Euler
-steps. We evaluate on LIBERO-Long~\citep{libero}, a suite of 10 long-horizon tasks. Each
-episode starts from one of the 50 fixed initial states the benchmark ships per task and runs at
-most 520 steps. Our driver matches LeRobot's \texttt{lerobot-eval} success rate on the
-same task and initial states. In our simulator version the reference policy succeeds in 32\% of
-500 episodes. That is below the 71\% the SmolVLA paper reports; a public reproduction of this checkpoint
-reports 56\%.\footnote{\url{https://github.com/huggingface/lerobot/issues/3264}}
+\paragraph{Robot policy and task.} SmolVLA~\citep{smolvla} is an open VLA with ${\sim}$450M parameters. A
+  vision-language backbone (SmolVLM-2) reads the camera images and the instruction. An
+  \emph{action expert} then plans the next 50 actions, building the plan from random noise in 10
+  refinement steps (flow matching). The robot executes the first action and replans at the next
+  step. We use the public LIBERO checkpoint with its own settings, run through LeRobot, and
+evaluate on LIBERO-Long~\citep{libero}, a simulated suite of 10
+  long-horizon manipulation tasks. Each episode starts from one of 50 fixed initial states per task
+and is a failure if the task is not done within 520 steps. The original policy succeeds in 32\% of 500 episodes, below the
+  71\% the SmolVLA paper reports. A public reproduction of this checkpoint reports
+  56\%.\footnote{\url{https://github.com/huggingface/lerobot/issues/3264}} Our rollout code
+matches the success rate of LeRobot's own evaluator on the same task and initial states.
 
-\paragraph{Compression.} \textbf{2 flow steps} uses 2 Euler steps instead of 10, with weights
-unchanged; policy time per call (batch 10, L4) falls from 0.81\,s to 0.32\,s. \textbf{int8} is
-per-channel round-to-nearest (RTN) weight quantization, and \textbf{int4-g32} is RTN int4 with
-groups of 32. \textbf{int4-coarse} is RTN int4 with groups of 128 where the width allows and one
-group per row otherwise, covering 62\% of weights, including every language-model and expert
-projection. Quantization covers all 521 linear layers. It is simulated (quantize, then dequantize), so it
-reproduces low-bit numerics but not low-bit speed. We verify that each group holds at most $2^b$
-values.
+\paragraph{Speed-ups.} \textbf{2 refinement steps} instead of 10, with weights untouched; time
+per policy call (batch of 10, one L4 GPU) falls from 0.81\,s to 0.32\,s. \textbf{Weight
+quantization} rounds every weight in all 521 linear layers to 8 or 4 bits: \textbf{int8} uses one
+scale per output channel, \textbf{int4-g32} one per group of 32 weights, and
+\textbf{int4-coarse} groups of 128 where the layer width allows and one scale per row otherwise.
+The rounding is simulated, so it reproduces low-bit accuracy but not low-bit speed.
 
-\paragraph{Monitors.} All four are fit once, on reference rollouts.
+\paragraph{Monitors.} We fit four monitors once, on runs of the original policy, and never
+change them. Each is a simplified member of a published family.
 \begin{itemize}
-  \item \textbf{probe-VLM}: a logistic probe on the backbone's mean-pooled final state, with
-  per-step labels from the episode outcome (a linear version of SAFE's learned
-  probe~\citep{safe}).
-  \item \textbf{probe-expert}: the same probe on the action expert's state at the last denoising
-  step.
-  \item \textbf{Mahalanobis}: the distance of the backbone state from successful training steps,
-  using no failure labels (VLA-FAIL-style~\citep{vlafail}).
-  \item \textbf{action consistency}: the squared disagreement of consecutive chunks on their 49
-  shared steps (Sentinel-style~\citep{sentinel}).
+  \item \textbf{VLM probe}: a linear classifier on the backbone's final state that predicts whether
+  the episode will fail (a linear version of SAFE~\citep{safe}).
+  \item \textbf{Expert probe}: the same classifier on the action expert's internal state.
+  \item \textbf{Mahalanobis}: how far the backbone's state lies from those seen in successful
+  training runs. It needs no failure examples (after VLA-FAIL~\citep{vlafail}).
+  \item \textbf{Action consistency}: how much each new 50-action plan disagrees with the previous
+  one on the steps they share (after Sentinel~\citep{sentinel}).
 \end{itemize}
-An alarm fires at the first $t\ge10$ where the running-mean score $S_t$ exceeds $\tau$. The
-threshold $\tau$ is the conformal $0.9$ quantile of $\max_{t\ge10}S_t$ over successful reference
-calibration episodes, as SAFE, FIPER and Sentinel also calibrate on successful
-rollouts~\citep{safe,fiper,sentinel}. This bounds false alarms on successes at $\alpha=0.1$ and
-says nothing about detection.
+A monitor's score at step $t$ is the average of its per-step scores so far. The alarm fires the
+first time that average exceeds the threshold after a 10-step warm-up. The threshold is set on
+successful runs of the original policy so that at most 10\% of them would raise an alarm.
 
-\paragraph{Protocol.} Initial states 0--29 train the monitors (reference only), 30--39 calibrate,
-and 40--49 test, for every task. All results below are on the test set: 100 episodes per
-condition, with matched initial states and seeds. Hypotheses, splits and monitors were
-pre-registered. Everything else is marked exploratory.
+\paragraph{Protocol.} Initial states 0--29 of every task train the monitors, 30--39 set the
+thresholds, and 40--49 form the test set: 100 episodes per policy variant, all starting from the
+same initial states with the same random seed. We pre-registered the hypotheses, data splits and
+monitors before collecting data, and label everything else exploratory.
 
 \section{Results}
 
@@ -106,138 +111,122 @@ pre-registered. Everything else is marked exploratory.
   \centering
   \includegraphics[width=\linewidth]{fig_main.pdf}
   \vspace{-1.6em}
-  \caption{\textbf{(a)} Task success. \textbf{(b)} The fraction of failed episodes caught with the
-  inherited threshold. Hatched bars are int4-coarse, which collapses the policy. \textbf{(c)}
-  Action-consistency scores of failed episodes against the inherited $\tau$ (dashed). Error bars
-  are Wilson 95\% intervals; the test set has 100 episodes per condition.}
+  \caption{\textbf{(a)} Task success of each policy variant. \textbf{(b)} The fraction of failed
+  episodes each monitor catches, using the threshold set on the original policy. \textbf{(c)} The
+  action-consistency monitor's scores on failed episodes. The dashed line is its threshold; with 2
+  refinement steps every failure falls below it. Error bars are 95\% intervals over 100 test
+  episodes per variant. Hatched bars are int4-coarse, which breaks the policy.}
   \label{fig:main}
   \vspace{-0.6em}
 \end{figure}
 
-\paragraph{Step reduction disarms the action-side monitors.} With 2 flow steps the policy
-succeeds as often as the reference, 32\% vs.\ 27\%.
+\paragraph{The fastest setting silently disables the action monitors.} With 2 refinement steps
+the robot succeeds in 32\% of test episodes, against 27\% for the original. Yet:
 \begin{itemize}
-  \item \textbf{Action consistency} caught 49\% of reference failures (36/73). It now catches none
-  of 68 (Fig.~\ref{fig:main}b,c). On initial states that fail under both policies, it loses 30
-  detections and gains none (McNemar $p{=}2{\times}10^{-9}$). The change in detection is $-0.49$,
-  with a 95\% CI of $[-0.91,-0.25]$ when tasks and calibration episodes are resampled together.
-  \item \textbf{probe-expert} loses 14 detections and gains none ($p{=}10^{-4}$). Its median alarm
-  moves from step 10 to step 124.
-  \item \textbf{Backbone monitors} are unaffected: probe-VLM catches 0.66 vs.\ 0.67, Mahalanobis
-  0.32 vs.\ 0.32. Step reduction changes nothing upstream of the expert. On identical step-0
-  observations, the backbone state is bit-identical to the
-  reference.\footnote{This holds on 6 of 10 tasks, and on 19 of 20 episodes of a seventh. On the other 3,
-  per-process cuDNN autotuning slightly perturbs the reference's step-0 state. We exclude those
-  tasks from same-input comparisons; without them the headline results are unchanged.}
+  \item \textbf{Action consistency} caught 49\% of the original policy's failures (36 of 73). It
+  catches none of the fast policy's 68 failures (Fig.~\ref{fig:main}b,c). Among starting positions
+  where both versions fail, it misses 30 failures it used to catch and catches none it used to miss
+  ($p{=}2{\times}10^{-9}$, paired McNemar test).
+  \item \textbf{The expert probe} drops from 78\% to 57\% (14 lost, 0 gained, $p{=}10^{-4}$). Its
+  typical alarm comes at step 124 instead of step 10.
+  \item \textbf{The two monitors that read the backbone} do not change: the VLM probe catches 66\%
+  against 67\%, and Mahalanobis 32\% against 32\%. Fewer refinement steps change only the action
+  expert. On the first step of each episode, where both versions see the same image, the
+  backbone's state is bit-for-bit identical.\footnote{On 6 of the 10 tasks, and on 19 of 20
+  episodes of a seventh. On the remaining 3 tasks, GPU kernel autotuning slightly changed the
+  original policy's first-step state. Excluding those tasks leaves every headline number intact.}
 \end{itemize}
 
 \begin{table}[t]
   \centering
   \small
   \setlength{\tabcolsep}{3.5pt}
-  \caption{Reference $\rightarrow$ 2 flow steps on the test set. \emph{Inherited}: the
-  reference-calibrated $\tau$. \emph{Oracle}: the best threshold with FAR $\le\alpha$, chosen on
-  the test set itself. \emph{Recal.}: $\tau$ recalibrated on the accelerated policy's own
-  successful calibration episodes.}
+  \caption{What changes when the policy goes from 10 to 2 refinement steps (original
+  $\rightarrow$ fast), on the test set.
+  \emph{Caught} and \emph{false alarms} use the original threshold.
+  \emph{Best possible} is the most failures any threshold could catch at $\le$10\% false alarms,
+  chosen with hindsight on the test set.
+  \emph{AUROC} is the probability that a random failure scores above a random success.
+  \emph{Re-tuned} sets a new threshold on the fast policy's own successful runs.}
   \label{tab:calib}
-  \begin{tabular}{lcccccc}
+  \begin{tabular}{lccccc}
     \toprule
-    & \multicolumn{2}{c}{inherited $\tau$} & TPR & & within-task & recal. \\
-    monitor & TPR & FAR & oracle & AUROC & AUROC & TPR/FAR \\
+    & failures & false & best & & re-tuned: \\
+    monitor & caught & alarms & possible & AUROC & caught / false al. \\
     \midrule
-    action consistency & .49$\rightarrow$\textbf{.00} & .15$\rightarrow$.00 & .44$\rightarrow$.34 & .77$\rightarrow$.72 & .89$\rightarrow$.84 & .26/.03 \\
-    probe-expert & .78$\rightarrow$\textbf{.57} & .11$\rightarrow$.00 & .77$\rightarrow$.71 & .95$\rightarrow$.94 & .98$\rightarrow$.89 & .66/.06 \\
-    probe-VLM & .67$\rightarrow$.66 & .04$\rightarrow$.00 & .81$\rightarrow$.87 & .95$\rightarrow$.96 & .96$\rightarrow$.93 & .60/.00 \\
-    Mahalanobis & .32$\rightarrow$.32 & .07$\rightarrow$.06 & .36$\rightarrow$.38 & .85$\rightarrow$.86 & .78$\rightarrow$.78 & .29/.06 \\
+    action consistency & .49$\rightarrow$\textbf{.00} & .15$\rightarrow$.00 & .44$\rightarrow$.34 & .77$\rightarrow$.72 & .26 / .03 \\
+    expert probe & .78$\rightarrow$\textbf{.57} & .11$\rightarrow$.00 & .77$\rightarrow$.71 & .95$\rightarrow$.94 & .66 / .06 \\
+    VLM probe & .67$\rightarrow$.66 & .04$\rightarrow$.00 & .81$\rightarrow$.87 & .95$\rightarrow$.96 & .60 / .00 \\
+    Mahalanobis & .32$\rightarrow$.32 & .07$\rightarrow$.06 & .36$\rightarrow$.38 & .85$\rightarrow$.86 & .29 / .06 \\
     \bottomrule
   \end{tabular}
   \vspace{-0.8em}
 \end{table}
 
-\paragraph{The failure is in calibration, not information.}
+\paragraph{The scores still carry the signal; the threshold is what breaks.}
 \begin{itemize}
-  \item \textbf{The score shrinks uniformly.} Two-step sampling shrinks chunk disagreement by a
-  near-constant factor: 0.42 (IQR 0.40--0.44) of the reference on the same initial state, over
-  steps 1--30.
-  \item \textbf{Ranking largely survives} (Table~\ref{tab:calib}). AUROC goes from 0.77 to 0.72.
-  An oracle threshold would still catch 34\% of failures, against 44\% on the reference.
-  \item \textbf{Recalibrating} on the accelerated policy's own successes recovers 26\% detection at
-  a 3\% false-alarm rate.
-  \item \textbf{The inherited threshold fails in the reassuring direction.} False alarms fall from
-  0.15 to 0 for action consistency and from 0.11 to 0 for probe-expert. A team checking its
-  false-alarm budget after acceleration would see an improvement.
+  \item \textbf{The score shrinks by a constant factor.} With 2 steps, consecutive plans agree more
+  closely. On the same starting position, action disagreement over the first 30 steps is 0.42
+  times its original value (middle half of episodes: 0.40--0.44).
+  \item \textbf{The ranking survives} (Table~\ref{tab:calib}). Failures still mostly score above
+  successes: AUROC goes from 0.77 to 0.72. With hindsight, a threshold could still catch 34\% of
+  failures.
+  \item \textbf{The old threshold now sits above every score.} Re-tuning it on the fast
+  policy's successful runs brings detection back to 26\%.
+  \item \textbf{The failure looks like an improvement.} False alarms fall to zero, from 15\% for
+  action consistency and from 11\% for the expert probe. A team that checks the false-alarm rate,
+  the one thing the threshold guarantees, would see the monitor getting better.
 \end{itemize}
-Concurrent open-loop work reports this rank-preserving shift for quantized
-probes~\citep{rankpreserving}. Step reduction shows that it also hits monitors with no learned
-parameters.
+The concurrent work reports this same pattern, rankings intact but thresholds wrong, for quantized
+probes~\citep{rankpreserving}. Our result shows it also hits a monitor with no learned parameters
+at all.
 
-\begin{table}[t]
-  \centering
-  \small
-  \caption{Same-input score shift at step 0 (6 matched tasks, 200 episodes each), in reference
-  standard deviations. In parentheses: the fraction of episodes that moved toward ``safe''.}
-  \label{tab:dose}
-  \begin{tabular}{lcccc}
-    \toprule
-    monitor & int8 & int4-g32 & int4-coarse & 2 flow steps \\
-    \midrule
-    probe-VLM & $-0.29$ (100\%) & $-2.30$ (100\%) & $-4.58$ (100\%) & $0$ (identical) \\
-    probe-expert & $+0.09$ (2\%) & $+0.05$ (47\%) & $+0.81$ (1\%) & $-1.08$ (100\%) \\
-    Mahalanobis & $+0.05$ (31\%) & $+4.82$ (0\%) & $+3.98$ (0\%) & $0$ (identical) \\
-    \bottomrule
-  \end{tabular}
-  \vspace{-0.8em}
-\end{table}
-
-\paragraph{Weight quantization pushes the backbone probe toward ``safe''.}
+\paragraph{Weight quantization pushes the VLM probe toward ``safe''.}
 \begin{itemize}
-  \item \textbf{int8} keeps task success (30\%) and false-alarm rates within 0.03. Yet on identical
-  inputs it lowers probe-VLM's score in every episode (Table~\ref{tab:dose}). In closed loop the
-  probe catches 0.54 of failures vs.\ 0.67 (13 lost, 3 gained, $p{=}0.02$; exploratory).
-  \item \textbf{int4-g32} cuts success to 5\% and shifts probe-VLM by $-2.3$ SD. The probe now
-  catches 9\% of failures (39 lost, 0 gained, $p{=}4{\times}10^{-12}$).
-  \item \textbf{int4-coarse} collapses success to 1\% and shifts probe-VLM by $-4.6$ SD. The probe
-  raises no alarm in any of 99 failed episodes. Mahalanobis alarms on every episode, successes
-  included, so it detects the compression rather than the failures.
+  \item \textbf{Score shift.} On the first step of each episode, where every variant sees the same
+  image, the VLM probe's score moves toward ``safe'' by 0.29 standard deviations under int8 (in
+  every episode), 2.3 under int4-g32 and 4.6 under int4-coarse.
+  \item \textbf{Detection follows.} The share of failures it catches falls from 67\% to 54\% (int8:
+  13 lost, 3 gained, $p{=}0.02$; exploratory), then to 9\% and to 0\%.
+  \item \textbf{int8 still looks fine by the usual checks.} Task success and false-alarm rates stay
+  unchanged.
+  \item \textbf{The int4 settings break the policy itself} (5\% and 1\% success). Under
+  int4-coarse, the probe stays silent through all 99 failures. The Mahalanobis monitor alarms on
+  every int4 episode, successes included, so it is detecting the compression rather than the
+  failures.
 \end{itemize}
-An open-loop replay cannot show this case, where the policy itself breaks while its monitor
-calls it safe.
 
-\paragraph{Controls.}
-\begin{itemize}
-  \item \textbf{Episode length.} Failures run to the timeout, which can inflate
-  detection~\citep{rankpreserving}. Counting only alarms before step 200 lowers reference
-  detection: probe-VLM .67$\rightarrow$.48, action consistency .49$\rightarrow$.27. Both zeros stay
-  zero.
-  \item \textbf{Task identity.} Two tasks never succeed. Even so, within-task reference AUROC is .96
-  for probe-VLM and .98 for probe-expert, and excluding those tasks changes no conclusion.
-  \item \textbf{Pre-registration.} The primary hypotheses predicted more false alarms under int4.
-  They were untestable, because int4-coarse left one successful test episode. Two secondary
-  hypotheses held: step reduction moves probe-expert more than int8 does, and int8 changes no
-  false-alarm rate by more than 0.05 (AUROC held for 3 of 4 monitors). The detection changes
-  were a pre-registered outcome, but no hypothesis predicted them.
-\end{itemize}
+\paragraph{Checks.} \emph{Episode length:} failed episodes run to the time limit, which gives
+a monitor more chances to alarm~\citep{rankpreserving}. Counting only alarms before step 200
+lowers the original detection rates (VLM probe 0.67$\rightarrow$0.48, action consistency
+0.49$\rightarrow$0.27), but both zeros stay at zero. \emph{Task identity:} two tasks never
+succeed, so a probe could score well just by recognizing them. Within single tasks the original
+AUROC is still 0.96 (VLM probe) and 0.98 (expert probe), and dropping those tasks changes no
+conclusion. \emph{Pre-registration:} we predicted more false alarms under int4, which could not be
+tested because int4-coarse left one successful test episode. Two secondary predictions held: 2
+steps moves the expert probe more than int8 does, and int8 changes no false-alarm rate by more
+than 0.05 (its AUROC prediction held for three of four monitors). We measured detection rates as planned but did not predict their collapse.
 
 \section{Related work and discussion}
 
 \paragraph{Related work.} VLA monitors are evaluated with the policy they were fit to held
-fixed~\citep{safe,vlafail,fiper,sentinel,rescue}; SAFECAST~\citep{safecast} studies threshold drift
-under input shift. Language-model probes go stale under fine-tuning but mostly survive
-quantization by AUROC~\citep{duan}, and concurrent work finds VLA probe coverage shifts under int4 at
-unchanged AUROC in an open-loop replay~\citep{rankpreserving}. Acceleration studies measure success, latency
-and motion quality~\citep{vlaquantbench,quantvla,embodiedeff,care}, but not the shipped monitor.
-We add closed-loop policies, step reduction, non-probe monitors, and the one-sided calibration
-that turns a score shift into silent misses.
+fixed~\citep{safe,vlafail,fiper,sentinel,rescue}; SAFECAST~\citep{safecast} studies thresholds
+under changes to the robot's inputs. Monitors under model updates have been studied for language
+models~\citep{duan} and, concurrently, for a quantized VLA replayed on recorded
+inputs~\citep{rankpreserving}. Speed-up studies measure success, speed and motion
+quality~\citep{vlaquantbench,quantvla,embodiedeff,care}, not the monitor that ships with the
+policy.
 
-\paragraph{Takeaways.} Treat any acceleration as invalidating a monitor's calibration, even
-when success holds. Check detection with labeled failures from the accelerated policy, not only
-the false-alarm budget. Expect a monitor to break where its input changes: here, backbone monitors
-survived step reduction and action-side monitors did not.
+\paragraph{Takeaways.} Treat every speed-up as invalidating a monitor's threshold, even when
+task success holds. Test the re-tuned monitor on failures of the sped-up policy, not just its
+false-alarm rate. Expect a monitor to break where its input changes: the backbone monitors
+survived fewer refinement steps, and the action monitors did not.
 
-\paragraph{Limitations.} One policy, one suite and one seed, with 100 test episodes per
-condition. Reference success is low, quantization is simulated, and our monitors are compact
-versions that use a single threshold where SAFE uses time-varying bands. int4-coarse was an
-unintended configuration that code review found; we report it under an accurate description.
+\paragraph{Limitations.} One policy, one task suite and one seed, with 100 test episodes per
+variant. The original policy's success rate is low, and quantization is simulated. Our monitors
+are simplified versions of the published ones; SAFE, for example, uses a threshold that varies
+over time. int4-coarse was not the setting we intended; code review caught it, and we report it
+under an accurate description.
 
 \bibliography{refs}
 

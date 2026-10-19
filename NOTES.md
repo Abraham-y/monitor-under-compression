@@ -98,3 +98,7 @@ New analysis: `robustness.py` -> results/main/robustness.{json,md}.
 - Added: SAFE, FIPER and Sentinel all calibrate on successful rollouts, so the one-sided-calibration blind spot is standard practice.
 - The concurrent paper was checked against the user-pasted full text. It is not downloaded, because OpenReview's browser check blocks it.
 - Rewrote the abstract for newcomers. The main text still fits 4 pages exactly.
+- Clarity pass (user OK'd):
+  - Rewrote the intro, setup and results in plain language, defining each term at first use.
+  - Dropped the separate quantization table and folded its numbers into the text.
+  - Every number was re-checked against results/main. The previous version is tagged `pre-clarity-pass`.
