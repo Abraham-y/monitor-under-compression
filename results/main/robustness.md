@@ -1,0 +1,51 @@
+## Calibration vs separability (test split; deployed = ref-calibrated tau)
+
+| monitor | cond | succ/fail | TPR deployed | FAR deployed | TPR recal | FAR recal | oracle TPR@FAR≤α | AUROC | within-task AUROC | TPR (t<200) | median alarm step |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| probe_vlm | ref | 27/73 | 0.67 | 0.04 | 0.67 | 0.04 | 0.81 | 0.95 | 0.96 | 0.48 | 33 |
+| probe_vlm | w8 | 30/70 | 0.54 | 0.03 | 0.79 | 0.10 | 0.84 | 0.93 | 0.93 | 0.43 | 13 |
+| probe_vlm | steps2 | 32/68 | 0.66 | 0.00 | 0.60 | 0.00 | 0.87 | 0.96 | 0.93 | 0.50 | 10 |
+| probe_vlm | w4 | 1/99 | 0.00 | 0.00 | 0.00 | 0.00 | — | — | — | 0.00 | — |
+| probe_exp | ref | 27/73 | 0.78 | 0.11 | 0.78 | 0.11 | 0.77 | 0.95 | 0.98 | 0.56 | 10 |
+| probe_exp | w8 | 30/70 | 0.81 | 0.10 | 0.83 | 0.10 | 0.86 | 0.93 | 0.95 | 0.60 | 32 |
+| probe_exp | steps2 | 32/68 | 0.57 | 0.00 | 0.66 | 0.06 | 0.71 | 0.94 | 0.89 | 0.34 | 124 |
+| probe_exp | w4 | 1/99 | 0.92 | 0.00 | 0.00 | 0.00 | — | — | — | 0.71 | 10 |
+| maha_vlm | ref | 27/73 | 0.32 | 0.07 | 0.32 | 0.07 | 0.36 | 0.85 | 0.78 | 0.32 | 18 |
+| maha_vlm | w8 | 30/70 | 0.30 | 0.10 | 0.41 | 0.13 | 0.37 | 0.83 | 0.79 | 0.30 | 10 |
+| maha_vlm | steps2 | 32/68 | 0.32 | 0.06 | 0.29 | 0.06 | 0.38 | 0.86 | 0.78 | 0.31 | 17 |
+| maha_vlm | w4 | 1/99 | 1.00 | 1.00 | 0.00 | 0.00 | — | — | — | 1.00 | 10 |
+| act_cons | ref | 27/73 | 0.49 | 0.15 | 0.49 | 0.15 | 0.44 | 0.77 | 0.89 | 0.27 | 190 |
+| act_cons | w8 | 30/70 | 0.43 | 0.13 | 0.17 | 0.07 | 0.40 | 0.69 | 0.83 | 0.23 | 158 |
+| act_cons | steps2 | 32/68 | 0.00 | 0.00 | 0.26 | 0.03 | 0.34 | 0.72 | 0.84 | 0.00 | — |
+| act_cons | w4 | 1/99 | 0.68 | 0.00 | 0.00 | 0.00 | — | — | — | 0.57 | 100 |
+
+## Change in detection vs ref (deployed threshold)
+
+| monitor | cond | ΔTPR | 95% CI (tasks + tau bootstrap) | McNemar lost/gained (pairs) | p |
+|---|---|---|---|---|---|
+| probe_vlm | w8 | -0.13 | [-0.24, +0.00] | 13/3 (67) | 0.0213 |
+| probe_vlm | steps2 | -0.01 | [-0.07, +0.12] | 7/3 (63) | 0.344 |
+| probe_vlm | w4 | -0.67 | [-0.95, -0.31] | 49/0 (73) | 3.55e-15 |
+| probe_exp | w8 | +0.03 | [-0.03, +0.09] | 3/5 (67) | 0.727 |
+| probe_exp | steps2 | -0.21 | [-0.41, +0.09] | 14/0 (63) | 0.000122 |
+| probe_exp | w4 | +0.14 | [-0.02, +0.31] | 1/14 (73) | 0.000977 |
+| maha_vlm | w8 | -0.02 | [-0.08, +0.08] | 4/2 (67) | 0.688 |
+| maha_vlm | steps2 | +0.01 | [-0.05, +0.14] | 3/2 (63) | 1 |
+| maha_vlm | w4 | +0.68 | [+0.35, +0.97] | 0/50 (73) | 1.78e-15 |
+| act_cons | w8 | -0.06 | [-0.21, +0.03] | 10/8 (67) | 0.815 |
+| act_cons | steps2 | -0.49 | [-0.91, -0.25] | 30/0 (63) | 1.86e-09 |
+| act_cons | w4 | +0.18 | [-0.12, +0.38] | 4/16 (73) | 0.0118 |
+
+## Same-input score shift at step 0 (matched tasks [0, 1, 2, 5, 6, 7]), in ref SDs
+
+| monitor | w8 | steps2 | w4 |
+|---|---|---|---|
+| probe_vlm | -0.29 (100% lower) | +0.00 (0% lower) | -4.58 (100% lower) |
+| probe_exp | +0.09 (2% lower) | -1.08 (100% lower) | +0.81 (1% lower) |
+| maha_vlm | +0.05 (31% lower) | +0.00 (0% lower) | +3.98 (0% lower) |
+
+## act_cons: chunk disagreement over steps 1-30, condition / ref (same task, init)
+
+- w8: median 1.01 (IQR 0.99-1.03, n=200)
+- steps2: median 0.42 (IQR 0.40-0.44, n=200)
+- w4: median 1.27 (IQR 1.15-1.39, n=200)

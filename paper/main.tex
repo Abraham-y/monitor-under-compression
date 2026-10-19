@@ -5,7 +5,7 @@
 \usepackage{graphicx}
 \usepackage{amsmath}
 
-\title{Does a Failure Monitor Survive Compression of the Policy It Watches?}
+\title{Recalibrate After You Accelerate: Few-Step Flow Sampling Silently Disarms a VLA's Failure Monitors}
 
 \author{Anonymous}
 
@@ -13,120 +13,223 @@
 \maketitle
 
 \begin{abstract}
-%ABSTRACT
+Failure monitors for vision-language-action (VLA) policies are calibrated on the policy as
+trained, but the deployed policy is usually accelerated. We freeze four monitors on SmolVLA,
+calibrate their alarms on reference rollouts, and run compressed policies closed loop on
+LIBERO-Long. Sampling the flow-matching action expert with 2 Euler steps instead of 10 cuts
+policy latency $2.5\times$ at unchanged task success. It also shrinks action-chunk
+disagreement by a uniform $0.42\times$, so an action-consistency monitor that caught 49\% of
+failures catches none of 68, and an expert-state probe loses a quarter of its detections.
+Monitors that read the vision-language backbone, which step reduction leaves untouched, are
+unaffected. Because conformal thresholds calibrated on successes bound only false alarms, the
+broken monitors pass a false-alarm check. Weight quantization shows the mirror image: it moves a
+backbone probe toward ``looks safe'' on identical inputs.
 \end{abstract}
 
-\keywords{VLA, quantization, runtime monitoring, failure detection, conformal prediction}
+\keywords{VLA, acceleration, quantization, runtime monitoring, conformal prediction}
 
 \section{Introduction}
 
-A vision-language-action (VLA) policy that reaches a robot is usually changed twice
-before deployment. It is compressed, because a 7B or even 0.5B model is slow at control
-rates~\citep{vlaquantbench,quantvla}. And it is wrapped in a runtime failure
-monitor, increasingly one that reads the policy's own hidden states and raises an alarm
-when a calibrated threshold is crossed~\citep{safe,safecast,vlafail}. The monitor is
-trained and calibrated on rollouts of the policy as it was trained. Nobody, as far as we
-can find, checks whether it still works on the policy as it is deployed.
+A VLA policy that reaches a robot has usually been changed twice:
+\begin{itemize}
+  \item it has been \textbf{accelerated}, by quantization, pruning or fewer denoising
+  steps~\citep{vlaquantbench,quantvla,care};
+  \item it has been wrapped in a runtime \textbf{failure monitor}, whose alarm threshold is
+  calibrated on rollouts of the policy as trained~\citep{safe,safecast,vlafail,sentinel}.
+\end{itemize}
+The accelerated policy inherits the monitor. Acceleration papers check that task success holds,
+but a conformal threshold keeps its guarantee only while calibration and deployment scores are
+exchangeable~\citep{conformal}, and acceleration can break that without moving success. For
+language-model probes, updates can preserve ranking while moving scores~\citep{duan}. Concurrent
+work shows the same for a SmolVLA probe under simulated int4, replaying the full-precision
+policy's observations open loop~\citep{rankpreserving}.
 
-Compression papers report that weight quantization leaves task success almost
-unchanged~\citep{vlaquantbench,embodiedeff}. That is the wrong evidence for a monitor.
-A hidden-state monitor depends on the geometry of the representation, and a conformal
-threshold depends on calibration and deployment rollouts being exchangeable; neither is
-implied by equal success rates. In language models, quantization that improves perplexity
-still damages a fifth of an SAE's features~\citep{saequant}.
-
-We test this directly. %CONTRIBUTION
+We test the deployed configuration: compressed policies run closed loop, with four frozen
+monitors from different families. Step reduction disarms the action-side monitors and leaves
+the backbone monitors intact, at unchanged task success. Calibrating on successes hides the
+failure: when scores shift downward, the false-alarm rate improves while detection collapses.
+Weight quantization does the reverse, pushing a backbone probe toward ``safe''.
 
 \section{Setup}
 \label{sec:setup}
 
-\paragraph{Policy and task.} We use SmolVLA~\citep{smolvla} (the public LIBERO checkpoint,
-${\sim}$450M parameters, SmolVLM2 backbone with a flow-matching action expert) through
-LeRobot's evaluation stack, with the checkpoint's own settings: 50-step action chunks,
-replanning every step, 10 Euler steps. We evaluate on LIBERO-Long~\citep{libero} (10
-tasks, 50 fixed initial states each, up to 520 steps), the suite where the policy fails
-most often. Our rollout driver reproduces LeRobot's \texttt{lerobot-eval} on matched
-tasks and initial states.
+\paragraph{Policy and task.} We use SmolVLA~\citep{smolvla}, the public LIBERO checkpoint
+(${\sim}$450M parameters: a SmolVLM2 backbone and a flow-matching action expert). We run it in
+LeRobot with the checkpoint's own settings: 50-step chunks, replanning every step, and 10 Euler
+steps. We evaluate on LIBERO-Long~\citep{libero}: 10 tasks, 50 fixed initial states each, and
+at most 520 steps per episode. Our driver reproduces LeRobot's \texttt{lerobot-eval} on matched
+episodes. In our simulator version the reference policy succeeds in 32\% of 500 episodes. That
+is below the paper's 71\%, but LeRobot's own evaluator shows the same gap.
 
-\paragraph{Compression.} Four conditions: \textbf{ref}, the checkpoint as shipped;
-\textbf{int8 W}, round-to-nearest weight-only int8 with per-channel scales;
-\textbf{int4 W}, weight-only int4 with groups of 128 and zero points; and \textbf{2 flow
-steps}, Euler integration with 2 steps instead of 10 and the weights untouched. The
-quantizers cover all 521 linear layers of the vision encoder, language model and action
-expert (508M parameters). The policy's small projection heads stay in full precision.
-Quantization is simulated (quantize, then dequantize), so it reproduces the numerics of
-an int8/int4 kernel but not its speed. We check that every quantized group holds at most
-$2^b$ distinct values, after a recent report found that ``INT8'' VLA artifacts were in
-fact FP32~\citep{onnxsmolvla}. The 2-step condition is a real speedup: it cuts policy time
-per call by $3.2\times$ on an L4.
+\paragraph{Compression.} \textbf{2 flow steps} uses 2 Euler steps instead of 10, with weights
+unchanged; policy time per call (batch 10, L4) falls from 0.81\,s to 0.32\,s. \textbf{int8} is
+per-channel round-to-nearest (RTN) weight quantization, and \textbf{int4-g32} is RTN int4 with
+groups of 32. \textbf{int4-coarse} is RTN int4 with groups of 128 where the width allows and one
+group per row otherwise, covering 62\% of weights, including every language-model and expert
+projection. Quantization covers all 521 linear layers. It is simulated (quantize, then dequantize), so it
+reproduces low-bit numerics but not low-bit speed. We verify that each group holds at most $2^b$
+values.
 
-\paragraph{Monitors.} Four monitors, one from each family in recent work, are each fit
-once on reference rollouts and never refit:
+\paragraph{Monitors.} All four are fit once, on reference rollouts.
 \begin{itemize}
-  \item \textbf{probe (VLM state):} a logistic probe on the VLM's mean-pooled final-layer
-  state, trained on per-step states labeled with the episode outcome (SAFE~\citep{safe});
-  \item \textbf{probe (expert state):} the same probe on the action expert's state at the
-  last denoising step;
-  \item \textbf{Mahalanobis (VLM):} distance of the VLM state from successful training
-  steps, using 64 principal components and a Ledoit--Wolf covariance. It needs no
-  failure labels (VLA-FAIL~\citep{vlafail}, FIPER~\citep{fiper});
-  \item \textbf{action consistency:} disagreement between consecutive action chunks on
-  their 49 shared steps. It needs no training (Sentinel~\citep{sentinel}, VLA-FAIL).
+  \item \textbf{probe-VLM}: a logistic probe on the backbone's mean-pooled final state, with
+  per-step labels from the episode outcome (SAFE-style~\citep{safe}).
+  \item \textbf{probe-expert}: the same probe on the action expert's state at the last denoising
+  step.
+  \item \textbf{Mahalanobis}: the distance of the backbone state from successful training steps,
+  using no failure labels (VLA-FAIL- and FIPER-style~\citep{vlafail,fiper}).
+  \item \textbf{action consistency}: the squared disagreement of consecutive chunks on their 49
+  shared steps (Sentinel-style~\citep{sentinel}).
 \end{itemize}
-Each monitor gives a per-step score, and the episode score at step $t$ is its running
-mean $S_t$. An alarm fires at the first $t\ge 10$ with $S_t>\tau$. The threshold $\tau$ is
-the conformal $(1-\alpha)$ quantile, with $\alpha=0.1$, of $\max_{t\ge10} S_t$ over
-successful \emph{reference} calibration episodes~\citep{conformal}. If deployment episodes
-were exchangeable with the calibration episodes, a successful episode would raise a false
-alarm with probability at most $\alpha$. Compression is exactly the change that breaks
-that assumption.
+An alarm fires at the first $t\ge10$ where the running-mean score $S_t$ exceeds $\tau$. The
+threshold $\tau$ is the conformal $0.9$ quantile of $\max_{t\ge10}S_t$ over successful reference
+calibration episodes. This bounds false alarms on successes at $\alpha=0.1$ and says nothing
+about detection.
 
-\paragraph{Splits and protocol.} Splits are by initial state and are shared across
-tasks. States 0--29 are reference-only and train the monitors. States 30--39 are
-calibration. States 40--49 are the test set, and every number we report comes from them.
-That gives 500 reference episodes and 200 per compressed condition. Hypotheses, splits
-and analyses were pre-registered before data collection; we mark anything else as
-exploratory.
+\paragraph{Protocol.} Initial states 0--29 train the monitors (reference only), 30--39 calibrate,
+and 40--49 test, for every task. All results below are on the test set: 100 episodes per
+condition, with matched initial states and seeds. Hypotheses, splits and monitors were
+pre-registered. Everything else is marked exploratory.
 
 \section{Results}
-%RESULTS
 
-\section{Related work}
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{fig_main.pdf}
+  \vspace{-1.6em}
+  \caption{\textbf{(a)} Task success. \textbf{(b)} The fraction of failed episodes caught with the
+  inherited threshold. Hatched bars are int4-coarse, which collapses the policy. \textbf{(c)}
+  Action-consistency scores of failed episodes against the inherited $\tau$ (dashed). Error bars
+  are Wilson 95\% intervals; the test set has 100 episodes per condition.}
+  \label{fig:main}
+  \vspace{-0.6em}
+\end{figure}
 
-\paragraph{VLA failure monitors.} SAFE~\citep{safe} probes VLA hidden states and calibrates
-alarms with functional conformal prediction. SAFECAST~\citep{safecast} shows that such
-thresholds go wrong under deployment-time \emph{input} shift (clutter, lighting,
-instructions) and adds contrast sets to calibration. VLA-FAIL~\citep{vlafail} pairs a
-last-layer Mahalanobis detector with action-chunk consistency. FIPER~\citep{fiper} combines
-embedding novelty with action-chunk entropy, and Sentinel~\citep{sentinel} uses temporal
-consistency together with a VLM progress check. RESCUE~\citep{rescue} argues that monitors
-should be judged by the interventions they trigger. All of these evaluate a monitor on the
-policy it was fit to. We hold the inputs fixed and change the policy underneath the
-monitor.
-
-\paragraph{VLA compression.} Post-training quantization of VLAs has been benchmarked at
-scale~\citep{vlaquantbench}, alongside new quantizers~\citep{quantvla} and studies of what
-compression does to motion quality~\citep{embodiedeff}. These studies measure success,
-latency and trajectory metrics; none examines the monitors deployed alongside the policy.
-In language models, \citet{saequant} shows that quantization can damage SAE features
-while perplexity is unchanged. We ask the analogous question for the monitors a robot
-actually acts on.
-
-\section{Discussion and limitations}
-%DISCUSSION
-
-\paragraph{Limitations.}
+\paragraph{Step reduction disarms the action-side monitors.} With 2 flow steps the policy
+succeeds as often as the reference, 32\% vs.\ 27\%.
 \begin{itemize}
-  \item The study covers one policy, one benchmark suite and one seed. Each compressed
-  condition has 100 test episodes, so false-alarm rates carry CIs of roughly $\pm0.1$.
-  \item Weight quantization is simulated. It reproduces the numerics of int8/int4
-  kernels but not their latency, and real kernels can add their own rounding.
-  \item Our monitors are compact reimplementations of each family, not the published
-  systems. For example, we use a running-mean score and a single conformal threshold
-  where SAFE uses functional conformal bands.
-  \item The policy scores lower in our simulator version than in its paper. LeRobot's own
-  evaluator shows the same gap on matched episodes.
+  \item \textbf{Action consistency} caught 49\% of reference failures (36/73). It now catches none
+  of 68 (Fig.~\ref{fig:main}b,c). On initial states that fail under both policies, it loses 30
+  detections and gains none (McNemar $p{=}2{\times}10^{-9}$). The change in detection is $-0.49$,
+  with a 95\% CI of $[-0.91,-0.25]$ when tasks and calibration episodes are resampled together.
+  \item \textbf{probe-expert} loses 14 detections and gains none ($p{=}10^{-4}$). Its median alarm
+  moves from step 10 to step 124.
+  \item \textbf{Backbone monitors} are unaffected: probe-VLM catches 0.66 vs.\ 0.67, Mahalanobis
+  0.32 vs.\ 0.32. Step reduction changes nothing upstream of the expert. On identical step-0
+  observations, the backbone state is bit-identical to the
+  reference.\footnote{This holds on 6 tasks. On the other 3, per-process cuDNN autotuning slightly
+  perturbs the reference's step-0 state. We exclude those tasks from same-input comparisons;
+  without them the headline results are unchanged.}
 \end{itemize}
+
+\begin{table}[t]
+  \centering
+  \small
+  \setlength{\tabcolsep}{3.5pt}
+  \caption{Reference $\rightarrow$ 2 flow steps on the test set. \emph{Inherited}: the
+  reference-calibrated $\tau$. \emph{Oracle}: the best threshold with FAR $\le\alpha$, chosen on
+  the test set itself. \emph{Recal.}: $\tau$ recalibrated on the accelerated policy's own
+  successful calibration episodes.}
+  \label{tab:calib}
+  \begin{tabular}{lcccccc}
+    \toprule
+    & \multicolumn{2}{c}{inherited $\tau$} & TPR & & within-task & recal. \\
+    monitor & TPR & FAR & oracle & AUROC & AUROC & TPR/FAR \\
+    \midrule
+    action consistency & .49$\rightarrow$\textbf{.00} & .15$\rightarrow$.00 & .44$\rightarrow$.34 & .77$\rightarrow$.72 & .89$\rightarrow$.84 & .26/.03 \\
+    probe-expert & .78$\rightarrow$\textbf{.57} & .11$\rightarrow$.00 & .77$\rightarrow$.71 & .95$\rightarrow$.94 & .98$\rightarrow$.89 & .66/.06 \\
+    probe-VLM & .67$\rightarrow$.66 & .04$\rightarrow$.00 & .81$\rightarrow$.87 & .95$\rightarrow$.96 & .96$\rightarrow$.93 & .60/.00 \\
+    Mahalanobis & .32$\rightarrow$.32 & .07$\rightarrow$.06 & .36$\rightarrow$.38 & .85$\rightarrow$.86 & .78$\rightarrow$.78 & .29/.06 \\
+    \bottomrule
+  \end{tabular}
+  \vspace{-0.8em}
+\end{table}
+
+\paragraph{The failure is in calibration, not information.}
+\begin{itemize}
+  \item \textbf{The score shrinks uniformly.} Two-step sampling shrinks chunk disagreement by a
+  near-constant factor: 0.42 (IQR 0.40--0.44) of the reference on the same initial state, over
+  steps 1--30.
+  \item \textbf{Ranking largely survives} (Table~\ref{tab:calib}). AUROC goes from 0.77 to 0.72.
+  An oracle threshold would still catch 34\% of failures, against 44\% on the reference.
+  \item \textbf{Recalibrating} on the accelerated policy's own successes recovers 26\% detection at
+  a 3\% false-alarm rate.
+  \item \textbf{The inherited threshold fails in the reassuring direction.} False alarms fall from
+  0.15 to 0 for action consistency and from 0.11 to 0 for probe-expert. A team checking its
+  false-alarm budget after acceleration would see an improvement.
+\end{itemize}
+Concurrent open-loop work reports this rank-preserving shift for quantized
+probes~\citep{rankpreserving}. Step reduction shows that it also hits monitors with no learned
+parameters.
+
+\begin{table}[t]
+  \centering
+  \small
+  \caption{Same-input score shift at step 0 (6 matched tasks, 200 episodes each), in reference
+  standard deviations. In parentheses: the fraction of episodes that moved toward ``safe''.}
+  \label{tab:dose}
+  \begin{tabular}{lcccc}
+    \toprule
+    monitor & int8 & int4-g32 & int4-coarse & 2 flow steps \\
+    \midrule
+    probe-VLM & $-0.29$ (100\%) & %W4G32VLM
+    & $-4.58$ (100\%) & $0$ (identical) \\
+    probe-expert & $+0.09$ (2\%) & %W4G32EXP
+    & $+0.81$ (1\%) & $-1.08$ (100\%) \\
+    Mahalanobis & $+0.05$ (31\%) & %W4G32MAHA
+    & $+3.98$ (0\%) & $0$ (identical) \\
+    \bottomrule
+  \end{tabular}
+  \vspace{-0.8em}
+\end{table}
+
+\paragraph{Weight quantization pushes the backbone probe toward ``safe''.}
+\begin{itemize}
+  \item \textbf{int8} keeps task success (30\%) and false-alarm rates within 0.03. Yet on identical
+  inputs it lowers probe-VLM's score in every episode (Table~\ref{tab:dose}). In closed loop the
+  probe catches 0.54 of failures vs.\ 0.67 (13 lost, 3 gained, $p{=}0.02$; exploratory).
+  \item %W4G32TEXT
+  \item \textbf{int4-coarse} collapses success to 1\% and shifts probe-VLM by $-4.6$ SD. The probe
+  raises no alarm in any of 99 failed episodes. Mahalanobis alarms on every episode, successes
+  included, so it detects the compression rather than the failures.
+\end{itemize}
+An open-loop replay cannot show this case, where the policy itself breaks while its monitor
+calls it safe.
+
+\paragraph{Controls.}
+\begin{itemize}
+  \item \textbf{Episode length.} Failures run to the timeout, which can inflate
+  detection~\citep{rankpreserving}. Counting only alarms before step 200 lowers reference
+  detection: probe-VLM .67$\rightarrow$.48, action consistency .49$\rightarrow$.27. Both zeros stay
+  zero.
+  \item \textbf{Task identity.} Two tasks never succeed. Even so, within-task reference AUROC is .96
+  for probe-VLM and .98 for probe-expert, and excluding those tasks changes no conclusion.
+  \item \textbf{Pre-registration.} The primary hypotheses predicted more false alarms under int4.
+  They were untestable, because int4-coarse left one successful test episode. A secondary
+  hypothesis held: step reduction moves probe-expert more than int8 does. The detection changes
+  were a pre-registered outcome, but no hypothesis predicted them.
+\end{itemize}
+
+\section{Related work and discussion}
+
+\paragraph{Related work.} VLA monitors are evaluated on the policy they were fit
+to~\citep{safe,vlafail,fiper,sentinel,rescue}; SAFECAST~\citep{safecast} studies threshold drift
+under input shift. Language-model probes go stale under fine-tuning but mostly survive
+quantization by AUROC~\citep{duan}, and concurrent work finds VLA probe coverage collapses under
+int4 in an open-loop replay~\citep{rankpreserving}. Acceleration studies measure success, latency
+and motion quality~\citep{vlaquantbench,quantvla,embodiedeff,care}, but not the shipped monitor.
+We add closed-loop policies, step reduction, non-probe monitors, and the one-sided calibration
+that turns a score shift into silent misses.
+
+\paragraph{Takeaways.} Treat any acceleration as invalidating a monitor's calibration, even
+when success holds. Check detection with labeled failures from the accelerated policy, not only
+the false-alarm budget. Expect a monitor to break where its input changes: here, backbone monitors
+survived step reduction and action-side monitors did not.
+
+\paragraph{Limitations.} One policy, one suite and one seed, with 100 test episodes per
+condition. Reference success is low, quantization is simulated, and our monitors are compact
+versions that use a single threshold where SAFE uses time-varying bands. int4-coarse was an
+unintended configuration that code review found; we report it under an accurate description.
 
 \bibliography{refs}
 

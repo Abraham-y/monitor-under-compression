@@ -53,3 +53,37 @@
   effects are on detection with 68-99 failures per condition.
 - Four adversarial review agents launched (analysis code, rollout hooks, hostile reviewer
   + novelty, data robustness). Read-only; findings to be logged here.
+
+## Adversarial review (2026-10-18 evening): findings and actions
+
+Four read-only review agents. All four reproduced the headline numbers.
+
+1. **Analysis code**: no bug changes a headline.
+   - **Tasks 3, 8, 9 step-0 mismatch.** Their ref step-0 h_vlm differs from steps2/w8, which match each other.
+     - Cause per the rollout reviewer: per-process cuDNN autotuning (`cudnn.benchmark=True`) of SigLIP's conv.
+     - The other 7 tasks are bit-identical.
+     - Action: same-input analyses use the matched tasks only; "noise floor 0.16" retracted.
+   - **w4 AUROCs rest on n_success=1.** Now reported as "—" in robustness.md.
+   - **w8 claim.** Now "no detectable change in FAR", not equivalence.
+   - **Episode length.** Added detection with alarms counted only before step 200.
+   - **Task identity.** Added within-task AUROC.
+   - **Noise reuse.** The same torch seed per batch reuses noise across batches. Noted; effect negligible.
+2. **Rollout hooks**: the hooks, alignment, done/success handling and steps2 are all correct.
+   - **HIGH: w4 fell back to one group per row** for in_features not divisible by 128. That is 384/521 layers and 62% of params, including every text-decoder and expert projection.
+     - Action: w4 relabelled "int4-coarse".
+     - w4nv (built on the same fallback) stopped after 10/20 batches (1/100 success, not analysed).
+     - Corrected int4 `w4g32` (groups of 32, all layers) run post hoc.
+   - **Lower-severity notes:** h_vlm pooled in bf16; the sync envs are not wrapped in FreezeAfterEpisodeEnd (safe, because we truncate at length); w4nv still quantized the connector.
+3. **Hostile reviewer**: score 2/5 as drafted, ~3 with fixes.
+   - **Novelty.** Found concurrent work (anonymous NeurIPS 2026 workshop submission, OpenReview atOkXTzFCL; the user pasted the full text): open-loop paired activations, probe-only, simulated per-channel int4/int8, coverage of failures; AUC unchanged while coverage shifts; ridge realignment repair.
+   - **Our distinct contributions:** closed loop, step reduction, non-probe monitors, success-calibrated (FAR-bounding) thresholds that hide detection loss.
+   - **Action:** reframed the paper around step reduction ("Recalibrate After You Accelerate"); cited the concurrent work, Duan 2606.15980 and CARE 2610.08917 (both verified on arXiv).
+4. **Robustness**:
+   - **F1 (act_cons 0/68 under steps2)** survives every check. It is a uniform 0.42x rescaling, i.e. a calibration failure: oracle TPR 0.44 -> 0.34, AUROC 0.77 -> 0.72.
+   - **F2 (probe_exp)** is directional and threshold-sensitive.
+   - **F3 (probe_vlm 0/99 under int4-coarse)** survives.
+     - Mahalanobis alarms on everything, successes included.
+     - The shift is large and nearly orthogonal to the failure direction; its projection on the probe weights flips the score.
+   - **F4 (w8)** weakened: probe_vlm TPR -0.13 (McNemar 13/3, p=0.02).
+
+New analysis: `robustness.py` -> results/main/robustness.{json,md}.

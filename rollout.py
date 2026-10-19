@@ -14,10 +14,16 @@ the hooks record, for every env in the batch:
 Conditions (see PREREG.md):
     ref      the checkpoint as shipped
     w8       RTN weight-only int8, per output channel, symmetric
-    w4       RTN weight-only int4, groups of 128 along the input dim, asymmetric
+    w4       RTN weight-only int4, asymmetric, groups of 128 along the input dim where
+             in_features is a multiple of 128 and ONE GROUP PER ROW otherwise. The fallback
+             covers the 960/480/320-wide text-decoder and expert projections (384 of 521
+             layers, 62% of quantized params), so this is a much coarser quantizer than
+             "g128" (found by review, 2026-10-18; see NOTES.md).
     steps2   flow-matching Euler steps 10 -> 2 (weights untouched)
-    w4nv     w4 with the vision encoder left in full precision (post hoc, exploratory;
-             added after w4 collapsed task success, see NOTES.md)
+    w4nv     w4 with the vision encoder left in full precision (post hoc; stopped after
+             10 of 20 batches once the w4 fallback was found)
+    w4g32    RTN weight-only int4, asymmetric, groups of 32 in every layer (32 divides
+             every in_features here). The corrected int4 (post hoc, exploratory).
 
 Weight quantization is simulated (quantize then dequantize in place), the usual PTQ
 accuracy setup. It changes the numerics a real int8/int4 kernel would see, but not
@@ -36,12 +42,13 @@ import torch
 from torch import nn
 
 POLICY = "HuggingFaceVLA/smolvla_libero"
-CONDITIONS = ("ref", "w8", "w4", "steps2", "w4nv")
-QUANT = ("w8", "w4", "w4nv")
+CONDITIONS = ("ref", "w8", "w4", "steps2", "w4nv", "w4g32")
+QUANT = ("w8", "w4", "w4nv", "w4g32")
 # Linear layers inside these modules are quantized; the policy's own small heads
 # (state_proj, action_in/out_proj, action_time_mlp_*) stay in full precision.
 QUANT_ROOT = "model.vlm_with_expert"
 W4_GROUP = 128
+W4G32_GROUP = 32
 
 
 def build_cfg(suite: str, task_id: int, n_envs: int, condition: str, episode_length: int | None = None):
@@ -120,9 +127,15 @@ def apply_compression(policy: nn.Module, condition: str) -> dict:
     info = {"condition": condition, "n_linear": 0, "n_params": 0}
     if condition not in QUANT:
         return info
-    fn = _rtn_int8_per_channel if condition == "w8" else _rtn_int4_group
     for _, m in _quant_linears(policy, condition):
-        m.weight.data.copy_(fn(m.weight.data))
+        if condition == "w8":
+            q = _rtn_int8_per_channel(m.weight.data)
+        elif condition == "w4g32":
+            assert m.in_features % W4G32_GROUP == 0, (m, m.in_features)
+            q = _rtn_int4_group(m.weight.data, W4G32_GROUP)
+        else:
+            q = _rtn_int4_group(m.weight.data)
+        m.weight.data.copy_(q)
         info["n_linear"] += 1
         info["n_params"] += m.weight.numel()
     return info
@@ -149,10 +162,16 @@ def verify_quantization(policy: nn.Module, condition: str, sample: int = 12) -> 
             worst = max(worst, max(len(torch.unique(r)) for r in rows))
         else:
             in_f = w.shape[1]
-            g = W4_GROUP if in_f % W4_GROUP == 0 else in_f
+            G = W4G32_GROUP if condition == "w4g32" else W4_GROUP
+            g = G if in_f % G == 0 else in_f
             groups = w[:4].reshape(-1, g)
             worst = max(worst, max(len(torch.unique(r)) for r in groups))
     out["max_unique_per_group"] = int(worst)
+    if condition in ("w4", "w4nv", "w4g32"):
+        G = W4G32_GROUP if condition == "w4g32" else W4_GROUP
+        per_row = [m for _, m in lins if m.in_features % G != 0]
+        out["layers_per_row_fallback"] = len(per_row)
+        out["params_per_row_fallback"] = int(sum(m.weight.numel() for m in per_row))
     out["limit"] = 255 if condition == "w8" else 16
     out["ok"] = bool(worst <= out["limit"])
     return out

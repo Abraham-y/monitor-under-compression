@@ -72,6 +72,8 @@ PLANS = {
         "steps2": {"inits": list(range(30, 50)), "seeds": [0]},
         # post hoc (exploratory): int4 with the vision encoder in full precision
         "w4nv": {"inits": list(range(30, 50)), "seeds": [0]},
+        # post hoc (exploratory): the corrected int4, groups of 32 everywhere
+        "w4g32": {"inits": list(range(30, 50)), "seeds": [0]},
     },
 }
 BATCH = 10
