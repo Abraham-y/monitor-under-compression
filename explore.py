@@ -12,7 +12,7 @@ import numpy as np
 import monitors as M
 
 ROOT = Path(__file__).resolve().parent
-CONDS = ("ref", "w8", "w4", "steps2")
+CONDS = ("ref", "w8", "w4", "steps2", "w4nv")
 ALWAYS_FAIL = (0, 4)  # tasks with 0/50 reference successes
 
 

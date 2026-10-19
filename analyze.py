@@ -18,7 +18,7 @@ from scipy.stats import binomtest
 import monitors as M
 
 ROOT = Path(__file__).resolve().parent
-CONDITIONS = ("ref", "w8", "w4", "steps2")
+CONDITIONS = ("ref", "w8", "w4", "steps2", "w4nv")
 N_BOOT = 10_000
 
 

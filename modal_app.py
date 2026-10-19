@@ -70,6 +70,8 @@ PLANS = {
         "w8": {"inits": list(range(30, 50)), "seeds": [0]},
         "w4": {"inits": list(range(30, 50)), "seeds": [0]},
         "steps2": {"inits": list(range(30, 50)), "seeds": [0]},
+        # post hoc (exploratory): int4 with the vision encoder in full precision
+        "w4nv": {"inits": list(range(30, 50)), "seeds": [0]},
     },
 }
 BATCH = 10

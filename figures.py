@@ -18,7 +18,7 @@ import numpy as np
 import monitors as M
 
 ROOT = Path(__file__).resolve().parent
-CONDS = ("ref", "w8", "w4", "steps2")
+CONDS = ("ref", "w8", "w4", "steps2", "w4nv")
 COND_LABEL = {"ref": "reference", "w8": "int8 W", "w4": "int4 W", "steps2": "2 flow steps"}
 COLORS = {"ref": "#4a4a4a", "w8": "#5b8fd6", "w4": "#d0573a", "steps2": "#3f9e6e"}
 MON_LABEL = {

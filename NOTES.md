@@ -41,3 +41,15 @@
   `vol.reload()` ("open files preventing the operation: hf/xet/logs/..."), before any
   rollout. Ref inputs unaffected. reload is now best-effort; compressed conditions
   relaunched as a separate app (`--conditions w8,w4,steps2`). No data lost or duplicated.
+
+## 2026-10-18 afternoon
+
+- Pre-registered analysis done (RESULTS.md). w4 collapsed task success (0.01), so H1/H2
+  were not testable as specified.
+- Post hoc, approved by the user (~$5-8): `w4nv` = w4 with the vision encoder left in full
+  precision, inits 30-49 seed 0, to look for an int4 regime that keeps task success.
+  Exploratory; reported separately from the pre-registered conditions.
+- Second seed: not run (user agreed to the recommendation to skip it); the headline
+  effects are on detection with 68-99 failures per condition.
+- Four adversarial review agents launched (analysis code, rollout hooks, hostile reviewer
+  + novelty, data robustness). Read-only; findings to be logged here.

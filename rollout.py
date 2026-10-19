@@ -16,6 +16,8 @@ Conditions (see PREREG.md):
     w8       RTN weight-only int8, per output channel, symmetric
     w4       RTN weight-only int4, groups of 128 along the input dim, asymmetric
     steps2   flow-matching Euler steps 10 -> 2 (weights untouched)
+    w4nv     w4 with the vision encoder left in full precision (post hoc, exploratory;
+             added after w4 collapsed task success, see NOTES.md)
 
 Weight quantization is simulated (quantize then dequantize in place), the usual PTQ
 accuracy setup. It changes the numerics a real int8/int4 kernel would see, but not
@@ -34,7 +36,8 @@ import torch
 from torch import nn
 
 POLICY = "HuggingFaceVLA/smolvla_libero"
-CONDITIONS = ("ref", "w8", "w4", "steps2")
+CONDITIONS = ("ref", "w8", "w4", "steps2", "w4nv")
+QUANT = ("w8", "w4", "w4nv")
 # Linear layers inside these modules are quantized; the policy's own small heads
 # (state_proj, action_in/out_proj, action_time_mlp_*) stay in full precision.
 QUANT_ROOT = "model.vlm_with_expert"
@@ -81,12 +84,13 @@ def build_cfg(suite: str, task_id: int, n_envs: int, condition: str, episode_len
 # ---------------------------------------------------------------- compression
 
 
-def _quant_linears(policy: nn.Module) -> list[tuple[str, nn.Linear]]:
+def _quant_linears(policy: nn.Module, condition: str = "") -> list[tuple[str, nn.Linear]]:
     root = policy.get_submodule(QUANT_ROOT)
     return [
         (f"{QUANT_ROOT}.{n}", m)
         for n, m in root.named_modules()
         if isinstance(m, nn.Linear) and not n.endswith("lm_head")
+        and not (condition == "w4nv" and "vision_model" in n)
     ]
 
 
@@ -114,10 +118,10 @@ def _rtn_int4_group(w: torch.Tensor, group: int = W4_GROUP) -> torch.Tensor:
 def apply_compression(policy: nn.Module, condition: str) -> dict:
     """Quantize in place for w8/w4. steps2 is set through the config in build_cfg."""
     info = {"condition": condition, "n_linear": 0, "n_params": 0}
-    if condition not in ("w8", "w4"):
+    if condition not in QUANT:
         return info
     fn = _rtn_int8_per_channel if condition == "w8" else _rtn_int4_group
-    for _, m in _quant_linears(policy):
+    for _, m in _quant_linears(policy, condition):
         m.weight.data.copy_(fn(m.weight.data))
         info["n_linear"] += 1
         info["n_params"] += m.weight.numel()
@@ -130,11 +134,11 @@ def verify_quantization(policy: nn.Module, condition: str, sample: int = 12) -> 
 
     Guards against the failure in arXiv 2609.14146, where 'INT8' artifacts were FP32.
     """
-    lins = _quant_linears(policy)
+    lins = _quant_linears(policy, condition)
     total = sum(m.weight.numel() for _, m in policy.named_modules() if isinstance(m, nn.Linear))
     covered = sum(m.weight.numel() for _, m in lins)
     out = {"linear_params_total": int(total), "linear_params_targeted": int(covered)}
-    if condition not in ("w8", "w4"):
+    if condition not in QUANT:
         return out
     worst = 0
     idx = np.linspace(0, len(lins) - 1, num=min(sample, len(lins))).astype(int)
@@ -251,7 +255,7 @@ class Runner:
         self.policy.eval()
         self.compression = apply_compression(self.policy, condition)
         self.verify = verify_quantization(self.policy, condition)
-        if condition in ("w8", "w4") and not self.verify["ok"]:
+        if condition in QUANT and not self.verify["ok"]:
             raise RuntimeError(f"quantization check failed: {self.verify}")
         self.num_steps = self.policy.config.num_steps
 
