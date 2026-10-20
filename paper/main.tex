@@ -16,7 +16,8 @@ Real-Time Embodied AI. Do not distribute.}
 \author{Anonymous}
 
 \begin{document}
-\hypersetup{pdfsubject={CoRL 2026 EEAI workshop submission}}
+\hypersetup{pdfsubject={CoRL 2026 EEAI workshop submission},
+  pdftitle={Does a Robot's Failure Monitor Still Work After a Speed-Up?}}
 \maketitle
 
 \begin{abstract}
@@ -24,10 +25,10 @@ Robots controlled by vision-language-action (VLA) models are often paired with a
 monitor: a lightweight check that raises an alarm when a task seems to be going wrong. The
 monitor's alarm threshold is tuned on the model as originally trained, but the deployed model is
 often a sped-up version, so we ask whether the monitor still works after that swap. We tune four
-common monitors on the open SmolVLA model, then run sped-up versions of it in the LIBERO-Long
-simulator with the monitors left unchanged. Building each action plan in 2 refinement steps
-instead of 10 makes the model 2.5$\times$ faster with no loss of success in our test (32\% vs.\
-27\%). Yet it disables a monitor that checks whether the robot's successive plans agree: that
+common monitors on the open SmolVLA model, then run sped-up versions of it on the LIBERO-Long
+benchmark with the monitors left unchanged. Building each action plan in 2 refinement steps
+instead of 10 makes the model 2.5$\times$ faster with no loss of success (27\% before, 32\%
+after). Yet it disables a monitor that checks whether the robot's successive plans agree: that
 monitor caught about half of all failures before and catches none after, because the faster
 model's plans agree more closely, which pulls every score below the old threshold. Counting false
 alarms, the only thing the threshold's tuning guarantees, does not flag this, because false alarms
@@ -68,7 +69,7 @@ actions decide what it sees next, while four unchanged monitors watch it.
 \label{sec:setup}
 
 \paragraph{Robot policy and task.} SmolVLA~\citep{smolvla} is an open VLA with ${\sim}$450M
-parameters. A vision-language \emph{backbone} (SmolVLM-2) reads the camera images and the
+parameters. A vision-language \emph{backbone} (SmolVLM2) reads the camera images and the
 instruction. An \emph{action expert} then plans the next 50 actions by flow matching: like a
 diffusion model, it turns random noise into a plan over 10 refinement steps. The robot executes
 the first action and replans at the next timestep. We use the public LIBERO checkpoint with its
@@ -83,7 +84,8 @@ succeed 6 times.
 
 \paragraph{Speed-ups.} \textbf{2 steps}: 2 refinement steps instead of 10, weights untouched; the
 median time per policy call (batch of 10, one L4 GPU) falls from 0.81\,s to 0.32\,s.
-\textbf{Weight quantization} rounds the weights of all 521 linear layers to 8 or 4 bits; weights
+\textbf{Weight quantization} rounds the weights of the 521 linear layers in the backbone and action
+expert to 8 or 4 bits; weights
 in a group share one scale, and bigger groups round more coarsely. \textbf{int8} uses one scale
 per output channel, \textbf{int4-g32} one per 32 weights, and \textbf{int4-coarse} one per 128
 weights where the layer width allows and one per row otherwise. The rounding is simulated, so it
@@ -100,7 +102,7 @@ them. Two read the backbone and two read the action expert.
   \item \textbf{Expert probe}: the same classifier on the action expert's internal state, which is
   where SAFE reads flow-matching VLAs~\citep{safe}; a linear stand-in for SAFE.
   \item \textbf{Action consistency}: how much each new 50-action plan disagrees with the previous
-  one on the steps they share, as in VLA-FAIL~\citep{vlafail}. Sentinel~\citep{sentinel} instead
+  one where they overlap, after VLA-FAIL~\citep{vlafail}. Sentinel~\citep{sentinel} instead
   compares distributions of many sampled plans.
 \end{itemize}
 A monitor's score at timestep $t$ is the average of its per-timestep scores so far, and the alarm
@@ -110,8 +112,8 @@ raise an alarm.
 
 \paragraph{Protocol.} Initial states 0--29 of every task train the monitors, 30--39 set the
 thresholds, and 40--49 form the test set: 100 episodes per variant, all with the same initial
-states and random seed. The hypotheses, splits and monitors were pre-registered before the main
-data collection. The int4-g32 variant and all other analyses (paired tests, re-tuning, best
+states and random seed. The hypotheses, outcomes (including re-tuning), splits and monitors were pre-registered
+before the main data collection. The int4-g32 variant and all other analyses (paired tests, best
 possible thresholds, score shifts, checks) were added afterwards and are exploratory.
 
 \section{Results}
@@ -130,22 +132,22 @@ possible thresholds, score shifts, checks) were added afterwards and are explora
 \end{figure}
 
 \paragraph{Two refinement steps disable the action-consistency monitor.} The 2-step policy
-succeeds in 32\% of test episodes, against 27\% for the original. Yet:
+succeeds in 32\% of test episodes, against 27\% for the original.
 \begin{itemize}
   \item \textbf{Action consistency} caught 49\% of the original's failures (36 of 73) and catches
-  none of the fast policy's 68 (Fig.~\ref{fig:main}b,c). On starting states where both fail, it
+  none of the 2-step policy's 68 (Fig.~\ref{fig:main}b,c). On initial states where both fail, it
   misses 30 failures it used to catch and gains none ($p{=}2{\times}10^{-9}$, paired McNemar;
-  95\% interval over tasks and thresholds for the change: $-0.91$ to $-0.25$). It stays at zero
+  95\% interval over tasks and thresholds for the change: $-0.92$ to $-0.25$). It stays at zero
   with a stricter 5\% false-alarm target.
   \item \textbf{The expert probe} drops from 78\% to 57\% (14 lost, 0 gained), and its median alarm
   moves from timestep 10, the earliest allowed, to 124. But the interval over tasks ($-0.41$ to
-  $+0.09$) includes zero and the drop vanishes at a 5\% target, so we treat it as suggestive.
+  $+0.08$) includes zero and the drop vanishes at a 5\% target, so we treat it as suggestive.
   \item \textbf{The backbone monitors} barely move: the VLM probe catches 66\% against 67\%, and
   Mahalanobis 32\% against 32\%. Fewer refinement steps change only the action expert; on the
   first timestep, where both versions see the same image, the backbone's features are bit-for-bit
   identical.\footnote{On 6 of the 10 tasks, and on 19 of 20 episodes of a seventh. On the other 3,
   the original's first-timestep features differ slightly, likely from GPU kernel autotuning.
-  Restricted to the 6 matched tasks, every conclusion holds except the int8 detection drop.}
+  Restricted to the 6 matched tasks, the detection results hold except int8's.}
 \end{itemize}
 
 \begin{table}[t]
@@ -175,12 +177,12 @@ succeeds in 32\% of test episodes, against 27\% for the original. Yet:
 \paragraph{The scores still rank failures; the threshold is what breaks.}
 \begin{itemize}
   \item \textbf{The score shrinks by a roughly constant factor.} With 2 steps, successive plans
-  agree more. On the same starting state, action disagreement over the first 30 timesteps is 0.42
-  times its original value (middle half of episodes: 0.40--0.44), the same for runs that succeed
+  agree more. On the same initial state, action disagreement over the first 30 timesteps is 0.42
+  times its original value (middle half of episodes: 0.40--0.44), and 0.43 for runs that succeed
   in both versions.
   \item \textbf{Ranking largely survives} (Table~\ref{tab:calib}): AUROC goes from 0.77 to 0.72,
   and with hindsight a threshold could still catch 34\% of failures. But the old threshold now
-  sits above every score, and re-tuning it on the fast policy's successful runs recovers only
+  sits above every score, and re-tuning it on the 2-step policy's successes recovers only
   26\%, against 49\% originally.
   \item \textbf{The failure looks like an improvement.} False alarms fall to zero (from 15\% for
   action consistency, 11\% for the expert probe). A team that checks the false-alarm rate, the
@@ -188,8 +190,8 @@ succeeds in 32\% of test episodes, against 27\% for the original. Yet:
 \end{itemize}
 Concurrent work reports the same pattern, ranking intact but threshold wrong, for quantized probes
 whose threshold is set on failures~\citep{rankpreserving}. With a threshold set on successes, as
-is common, the shift shows up as fewer false alarms and hides the loss. It also hits a monitor
-with no trained weights.
+is common, the shift shows up as fewer false alarms and hides the loss. Here the pattern also hits a
+monitor with no trained weights.
 
 \paragraph{Weight quantization nudges the VLM probe toward ``safe''.} On the first timestep,
 where every variant sees the same image, the VLM probe's score moves toward ``safe'' by 0.29
@@ -207,16 +209,16 @@ lowers the original detection rates (VLM probe 0.67$\rightarrow$0.48, action con
 0.49$\rightarrow$0.27), but both zeros stay at zero. \emph{Task identity:} two tasks never
 succeed, so a probe could score well by recognizing them; within single tasks the original AUROC
 is still 0.96 (VLM probe) and 0.98 (expert probe), and dropping those tasks changes no
-conclusion. \emph{Pre-registration:} both primary hypotheses concerned int4 and could not be
-tested, as int4-coarse left one successful test episode. Of the secondary ones, 2 steps moved the
+conclusion. \emph{Pre-registration:} both primary hypotheses concerned int4 and were
+uninformative, as int4-coarse left one successful test episode. Of the secondary ones, 2 steps moved the
 expert probe's false-alarm rate more than int8 did (held), and int8 moved every false-alarm rate
 by at most 0.05 but one AUROC by 0.08 (failed). We did not predict the detection collapse.
 
 \section{Related work and discussion}
 
 \paragraph{Related work.} Monitors for VLAs and other learned policies are evaluated with the
-policy held fixed~\citep{safe,vlafail,fiper,sentinel}; even then, a SAFE-style monitor's realized
-false-alarm rate can land far from its target~\citep{rescue}. SAFECAST~\citep{safecast} studies
+policy held fixed~\citep{safe,vlafail,fiper,sentinel}; even then, a SAFE-style monitor on held-out tasks can
+far exceed its false-alarm target~\citep{rescue}. SAFECAST~\citep{safecast} studies
 thresholds under changes to the robot's inputs. Monitor staleness under model updates has been
 studied for language models~\citep{duan} and, concurrently, for a quantized VLA replayed on
 recorded inputs, repaired by realigning its activations~\citep{rankpreserving}. Speed-up studies
@@ -230,7 +232,7 @@ shrink is plain (median 0.27 vs.\ 0.11) without a single failure. Then re-test d
 failures of the sped-up policy. Expect a monitor to break where its input changes.
 
 \paragraph{Limitations.} One policy, one task suite and one seed, with 100 test episodes per
-variant and intervals not clustered by task. The original policy's success rate is low, and
+variant. The original policy's success rate is low, and
 quantization is simulated. Our monitors are simplified: SAFE, for example, uses a time-varying
 threshold. We did not test why 2-step plans agree more; plausibly, fewer refinement steps give
 less varied plans. int4-coarse was an unintended setting that code review caught.

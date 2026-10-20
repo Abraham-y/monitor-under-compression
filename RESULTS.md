@@ -23,7 +23,7 @@ The test split is 100 episodes per condition: inits 40–49 × 10 tasks.
 ## Main findings (inherited = ref-calibrated threshold, α = 0.1)
 
 1. **Step reduction disarms the action-side monitors at unchanged success.**
-   - act_cons TPR falls from 0.49 to **0.00** (0/68). McNemar 30 lost / 0 gained, p = 2e-9. ΔTPR −0.49 [−0.91, −0.25], bootstrapping tasks and tau together.
+   - act_cons TPR falls from 0.49 to **0.00** (0/68). McNemar 30 lost / 0 gained, p = 2e-9. ΔTPR −0.49 [−0.92, −0.25], bootstrapping tasks and tau together.
    - probe_exp TPR falls from 0.78 to 0.57 (14/0, p = 1e-4). Its median alarm moves from step 10 to step 124. This is threshold-sensitive (it vanishes at α = 0.05), so it is reported as directional.
    - probe_vlm (0.66 vs 0.67) and maha_vlm (0.32 vs 0.32) are unchanged. At step 0 the VLM state is bit-identical to ref on the matched tasks.
 2. **Calibration, not information.**

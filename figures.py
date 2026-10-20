@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parent
 CONDS = ("ref", "w8", "steps2", "w4g32", "w4")
 COND_LABEL = {"ref": "original", "w8": "int8", "steps2": "2 steps", "w4g32": "int4-g32",
               "w4": "int4-coarse"}
-SHORT = {"ref": "original", "w8": "int8", "steps2": "2 steps", "w4g32": "int4-g32", "w4": "int4-c"}
+SHORT = {"ref": "original", "w8": "int8", "steps2": "2 steps", "w4g32": "int4-g32", "w4": "int4-coarse"}
 COLORS = {"ref": "#4a4a4a", "w8": "#5b8fd6", "steps2": "#3f9e6e", "w4g32": "#e09a3c", "w4": "#d0573a"}
 MONS = ("act_cons", "probe_exp", "probe_vlm", "maha_vlm")
 MON_LABEL = {"act_cons": "action\nconsist.", "probe_exp": "expert\nprobe", "probe_vlm": "VLM\nprobe",

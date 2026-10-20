@@ -118,3 +118,19 @@ New analysis: `robustness.py` -> results/main/robustness.{json,md}.
 - **Figure:** re-exported at its printed width (5.5 in, 7 pt+ text). The caption explains the intervals and that both int4 variants break the policy.
 - **Footer and PDF subject** now name the EEAI workshop.
 - **Citation fixes:** see references/CITATION_CHECK.md, second audit.
+
+## 2026-10-19: third (final) review round (fact delta, citation delta, proofread)
+
+- **Nothing blocking:** anonymity, page limit and number consistency all pass.
+- **Fixes:**
+  - The matched-task footnote is narrowed to "the detection results hold except int8's" (the original act_cons already had 0/17 false alarms on those tasks).
+  - Bootstrap CIs updated to the current robustness.json: [-0.92, -0.25] and [-0.41, +0.08].
+  - Re-tuning is marked as pre-registered (it is in the PREREG outcomes table).
+  - H1/H2 are now "uninformative" rather than "could not be tested".
+  - "0.43 for runs that succeed in both".
+  - RESCUE's miss is on held-out tasks.
+  - Action consistency is "after" VLA-FAIL, since VLA-FAIL's version is normalized and position-only.
+  - "the 521 linear layers in the backbone and action expert".
+  - Terminology: "2-step policy" and "initial state" everywhere.
+  - The abstract reads "27% before, 32% after" and calls LIBERO-Long a benchmark.
+  - Figure tick label "int4-coarse"; pdftitle set.
