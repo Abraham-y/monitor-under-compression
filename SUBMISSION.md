@@ -21,8 +21,7 @@ VLA, acceleration, flow matching, quantization, runtime monitoring, failure dete
 
 ## TL;DR
 
-Two-step flow sampling makes SmolVLA 2.5x faster with no loss of success, but silently disables its
-action-consistency failure monitor: false alarms fall to zero, so the usual check sees an improvement.
+Making SmolVLA 2.5x faster with fewer flow steps keeps its success rate but silently disables an action-consistency failure monitor: its false alarms drop too, so the usual check looks like an improvement.
 
 ## Checklist before submitting
 
