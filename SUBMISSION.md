@@ -9,7 +9,7 @@
 
 ## Title
 
-Re-test After You Accelerate: Few-Step Flow Sampling Silently Disables a VLA Failure Monitor
+Does a Robot's Failure Monitor Still Work After a Speed-Up?
 
 ## Abstract (plain text for the form)
 
