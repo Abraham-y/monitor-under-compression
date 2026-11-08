@@ -134,3 +134,21 @@ New analysis: `robustness.py` -> results/main/robustness.{json,md}.
   - Terminology: "2-step policy" and "initial state" everywhere.
   - The abstract reads "27% before, 32% after" and calls LIBERO-Long a benchmark.
   - Figure tick label "int4-coarse"; pdftitle set.
+
+## 2026-11-07: accepted; camera-ready
+
+**Decision:** accepted 2026-11-05. One review (7/10, confidence 3) plus a meta-review; the text is in SUBMISSION.md. Asks: validate the rollout schedule, keep observed success apart from non-inferiority, scope claims to our monitor implementations, narrow "threshold is what breaks". Text-only revision (user's choice); no new Modal runs.
+
+**Changes to `paper/main.tex`:**
+- De-anonymized: `[final]` option, author Abraham Yeung, Stanford, repo link in the intro. The footer names the workshop.
+- "No loss of success" became "no observed drop". New paired numbers: 10 states gained, 5 lost, 95% task-bootstrap interval −1 to +12 points (`success_diff.py`, results/main/success_diff.txt).
+- "Simplified versions of" in the abstract; Limitations says the monitors simplify SAFE/VLA-FAIL/Sentinel rather than reproduce them.
+- Results heading is now "Most of the loss is the inherited threshold; some is ranking". The best hindsight threshold catches 0.44 → 0.34, so about 10 points go to ranking and 34 to the threshold.
+- Setup states the 1-action replanning schedule as shipped. The footnote adds the released checkpoint's expert width 0.5 (the paper uses 0.75; the HF config was checked) and MuJoCo ≥3.4 start-scene drift (lerobot#4390, 152/500 LIBERO-10 states; we ran 3.8.1).
+- Related-work sweep (subagent; every cited paper re-verified on arXiv or a venue page): added coupling (2610.32102), onestep (2610.30735, cited as arXiv because the abs page names no venue), doula (NeurIPS 2026 E&D), actprobe (2606.08508) and faildetect (RSS 2025). rankpreserving is now Bysani, RoboPAD @ NeurIPS 2026; quantvla is now CVPR 2026.
+- The "we did not test why 2-step plans agree more" limitation is replaced by the coupling citation (the shrink factor fits 0.43–0.51 for π0/π0.5).
+- Trimmed to fit 4 pages. No overfull boxes.
+
+**Not done:**
+- No 10-action-schedule run. A check would be cheap (~10 test batches). rollout.py's docstring assumes one policy call per env step, so the hooks need checking before `--policy.n_action_steps=10`.
+- int8 vs concurrent work: they say int8 leaves the VLM text stream untouched; we see a 0.29 SD probe shift. We also quantize the vision encoder. Unverified, and left out of the paper.
