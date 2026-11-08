@@ -3,6 +3,7 @@
     modal run modal_app.py --stage smoke --condition ref            # 2 episodes, prints a summary
     modal run --detach modal_app.py --stage collect --plan main     # every (condition, task) in PLANS
     modal run modal_app.py --stage fetch --run main                 # -> data/main/
+    modal run modal_app.py --stage replay --plan main --items ref:2:42,steps2:2:42   # CPU; frames for media.py
 
 Each (condition, task) runs in its own container; at most MAX_CONTAINERS at once (the
 account caps at 10 GPUs). Re-running collect skips batches whose .npz already exists.
@@ -74,6 +75,11 @@ PLANS = {
         "w4nv": {"inits": list(range(30, 50)), "seeds": [0]},
         # post hoc (exploratory): the corrected int4, groups of 32 everywhere
         "w4g32": {"inits": list(range(30, 50)), "seeds": [0]},
+    },
+    # camera-ready (exploratory): the shipped weights executing 10 actions per plan, on the
+    # test split with ref's seed, to check the replanning schedule. Kept out of run "main".
+    "schedule": {
+        "ref_a10": {"inits": list(range(40, 50)), "seeds": [0]},
     },
 }
 BATCH = 10
@@ -203,6 +209,72 @@ def collect(run: str, condition: str, suite: str, task_id: int, inits: list[int]
     return {"condition": condition, "task_id": task_id, "batches": done}
 
 
+def _is_success(info: dict) -> bool:
+    """Env 0's success flag from a vector-env step info (LeRobot's rollout logic, one env)."""
+    if "final_info" in info:
+        fi = info["final_info"]
+        if isinstance(fi, dict):
+            return bool(fi.get("is_success", [False])[0])
+        return bool(isinstance(fi[0], dict) and fi[0].get("is_success", False))
+    return bool(info.get("is_success", [False])[0])
+
+
+@app.function(cpu=4.0, memory=16 * 1024, volumes={"/vol": vol}, timeout=60 * 60,
+              secrets=[modal.Secret.from_name("huggingface")])
+def replay(run: str, items: list[tuple[str, int, int]], seed: int = 0) -> list[dict]:
+    """Re-render recorded episodes for the sample videos: no policy, CPU only.
+
+    Replays each episode's saved actions (exactly what rollout() sent to env.step) from the
+    same init state and env seed, and saves both camera views per step to
+    /vol/media/<run>/<condition>_task<k>_init<i>.npz. Success and length are checked
+    against the recording, so the frames belong to the episode the paper scored.
+    """
+    import os
+
+    os.environ["MUJOCO_GL"] = os.environ["PYOPENGL_PLATFORM"] = "osmesa"
+    import numpy as np
+    from lerobot.envs import make_env
+    from lerobot.envs.utils import NEW_ROLLOUT_OPTION
+
+    import rollout
+
+    vol.reload()
+    out = []
+    for condition, task_id, init in items:
+        ids = next(b for b in _batches(PLANS[run][condition]["inits"], BATCH) if init in b)
+        z = np.load(f"/vol/runs/{run}/{condition}/{SUITE}/{_npz_name(task_id, ids, seed)}")
+        b = list(z["init_ids"]).index(init)
+        length, actions = int(z["length"][b]), z["action"][b]
+        cfg = rollout.build_cfg(SUITE, task_id, 1, "ref")
+        env = make_env(cfg.env, n_envs=1, use_async_envs=False)[SUITE][task_id]
+        env.set_attr("init_state_id", [init])
+        obs, _ = env.reset(seed=[seed * 1000 + init], options={NEW_ROLLOUT_OPTION: True})
+        cams = list(obs["pixels"])
+        frames = {c: [obs["pixels"][c][0, ::-1, ::-1]] for c in cams}  # flipped for viewing
+        success, steps = False, 0
+        for t in range(length):
+            obs, _, term, trunc, info = env.step(actions[t : t + 1])
+            for c in cams:
+                frames[c].append(obs["pixels"][c][0, ::-1, ::-1])
+            steps = t + 1
+            success = success or _is_success(info)
+            if term[0] or trunc[0]:
+                break
+        task = str(env.call("task_description")[0])
+        env.close()
+        path = Path(f"/vol/media/{run}/{condition}_task{task_id}_init{init}.npz")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(path, **{c: np.stack(f) for c, f in frames.items()},
+                            success=success, length=steps, task=task)
+        vol.commit()
+        res = {"condition": condition, "task_id": task_id, "init": init, "cams": cams,
+               "replay": [bool(success), steps], "recorded": [bool(z["success"][b]), length]}
+        res["match"] = res["replay"] == res["recorded"]
+        print(json.dumps(res), flush=True)
+        out.append(res)
+    return out
+
+
 @app.local_entrypoint()
 def main(
     stage: str = "smoke",
@@ -214,7 +286,13 @@ def main(
     conditions: str = "",
     tasks: str = "",
     run: str = "",
+    items: str = "",
 ):
+    if stage == "replay":
+        # --items ref:2:42,steps2:2:42  (condition:task:init)
+        todo = [(c, int(t), int(i)) for c, t, i in (x.split(":") for x in items.split(","))]
+        print(json.dumps(replay.remote(run or plan, todo), indent=1))
+        return
     if stage == "official":
         base = [f"--env.task={suite}", f"--env.task_ids=[{task_id}]"]
         calls = [

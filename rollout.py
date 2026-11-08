@@ -4,8 +4,8 @@ Runs inside the Modal image (modal_app.py). Reuses LeRobot's own config parsing,
 processors and rollout loop (lerobot 0.6.1, scripts/lerobot_eval.py) so task success
 matches `lerobot-eval`; the only additions are compression and forward hooks.
 
-Per policy call (one per env step: the checkpoint replans every step, n_action_steps=1)
-the hooks record, for every env in the batch:
+Per policy call (one per env step: the checkpoint replans every step, n_action_steps=1;
+one per 10 steps under ref_a10) the hooks record, for every env in the batch:
 
     h_vlm   VLM prefix output after the final norm, mean-pooled over valid tokens (960)
     h_exp   action-expert output at the last denoising step, mean-pooled over the chunk (480)
@@ -24,6 +24,9 @@ Conditions (see PREREG.md):
              10 of 20 batches once the w4 fallback was found)
     w4g32    RTN weight-only int4, asymmetric, groups of 32 in every layer (32 divides
              every in_features here). The corrected int4 (post hoc, exploratory).
+    ref_a10  the checkpoint as shipped, but executing 10 actions per plan before replanning
+             (n_action_steps=10), to check the replanning schedule against the 56% public
+             reproduction (camera-ready, success only, exploratory).
 
 Weight quantization is simulated (quantize then dequantize in place), the usual PTQ
 accuracy setup. It changes the numerics a real int8/int4 kernel would see, but not
@@ -42,7 +45,7 @@ import torch
 from torch import nn
 
 POLICY = "HuggingFaceVLA/smolvla_libero"
-CONDITIONS = ("ref", "w8", "w4", "steps2", "w4nv", "w4g32")
+CONDITIONS = ("ref", "w8", "w4", "steps2", "w4nv", "w4g32", "ref_a10")
 QUANT = ("w8", "w4", "w4nv", "w4g32")
 # Linear layers inside these modules are quantized; the policy's own small heads
 # (state_proj, action_in/out_proj, action_time_mlp_*) stay in full precision.
@@ -69,6 +72,8 @@ def build_cfg(suite: str, task_id: int, n_envs: int, condition: str, episode_len
     ]
     if condition == "steps2":
         argv.append("--policy.num_steps=2")
+    if condition == "ref_a10":
+        argv.append("--policy.n_action_steps=10")
     if episode_length:
         argv.append(f"--env.episode_length={episode_length}")
 
@@ -318,7 +323,8 @@ class Runner:
         # the first True in `done` is the last real step of that episode
         length = np.where(done.any(1), done.argmax(1) + 1, T)
         success = np.array([succ[b, : length[b]].any() for b in range(len(init_ids))])
-        assert feats["h_vlm"].shape[1] == T, (feats["h_vlm"].shape, T)
+        n_calls = feats["h_vlm"].shape[1]
+        assert n_calls == -(-T // self.policy.config.n_action_steps), (feats["h_vlm"].shape, T)
         return {
             **feats,
             "action": ret["action"].numpy().astype(np.float32),
@@ -328,7 +334,7 @@ class Runner:
             "seed": np.int64(seed),
             "wall_s": np.float64(wall),
             "policy_s": np.float64(self.rec.policy_s),
-            "n_policy_calls": np.int64(T),
+            "n_policy_calls": np.int64(n_calls),
         }
 
     def close(self):

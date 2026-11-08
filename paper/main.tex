@@ -90,8 +90,9 @@ the 71\% the SmolVLA paper reports. An independent evaluation of the released mo
 action expert is 0.5 times the backbone width, not the paper's 0.75. With MuJoCo $\geq$3.4, which we
 use, 152 of the 500 LIBERO-Long initial states reportedly settle differently (LeRobot issue 4390);
 every variant sees the same states.} Our rollout code
-matches LeRobot's own evaluator under this schedule (6 of 10 LIBERO-Spatial episodes each); we did
-not test whether executing more actions per plan closes the gap.
+matches LeRobot's own evaluator under this schedule (6 of 10 LIBERO-Spatial episodes each), and
+executing 10 actions per plan lifts test success only to 33\%, so the schedule does not explain the
+gap.
 
 \paragraph{Speed-ups.} \textbf{2 steps}: 2 refinement steps instead of 10, weights untouched; the
 median time per policy call (batch of 10, one L4 GPU) falls from 0.81\,s to 0.32\,s.
@@ -246,6 +247,8 @@ where its input changes.
 episodes per variant; low baseline success; simulated quantization. Our monitors simplify SAFE,
 VLA-FAIL and Sentinel rather than reproduce them (SAFE uses a time-varying threshold).
 int4-coarse was an unintended setting that code review caught.
+
+\acknowledgments{We thank Modal for compute.}
 
 \bibliography{refs}
 

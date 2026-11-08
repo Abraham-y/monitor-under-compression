@@ -150,5 +150,26 @@ New analysis: `robustness.py` -> results/main/robustness.{json,md}.
 - Trimmed to fit 4 pages. No overfull boxes.
 
 **Not done:**
-- No 10-action-schedule run. A check would be cheap (~10 test batches). rollout.py's docstring assumes one policy call per env step, so the hooks need checking before `--policy.n_action_steps=10`.
 - int8 vs concurrent work: they say int8 leaves the VLM text stream untouched; we see a 0.29 SD probe shift. We also quantize the vision encoder. Unverified, and left out of the paper.
+
+## 2026-11-07 (later): replanning-schedule check, sample media, acknowledgment
+
+**Schedule check (the reviewer's main ask; user approved, about $2–4):**
+- New condition `ref_a10`: the shipped weights with `--policy.n_action_steps=10`. Run as plan `schedule` on the test split (inits 40–49, seed 0), kept out of run `main`.
+- rollout.py now counts policy calls as ceil(T / n_action_steps) instead of assuming one per step.
+- Smoke on task 1 gave 52 calls for 520 steps.
+- Result: 33/100 against ref's 27/100 on the same states. +6 points, 11 gained / 5 lost, 95% task-bootstrap [−1, +14], McNemar p=0.21 (`success_diff.py`).
+- Even the upper bound (~41%) is far below the 56% public reproduction, so the schedule does not explain the gap. Stated in the setup paragraph.
+- Monitors were not evaluated under ref_a10, so Limitations still says "one replanning schedule".
+
+**Sample media (`media.py`, outputs in `media/`):**
+- Frames come from `modal_app.replay`, a CPU-only stage that replays each episode's recorded actions from the same init state and env seed.
+- All 6 replays matched the recorded success and length; both successes ended on exactly the recorded step (264 and 240). So the frames are the episodes the paper scored.
+- Clips:
+  - fail_task2_init42: ref alarms at step 100; 2-step peaks at 0.31× threshold.
+  - fail_task4_init45: ref alarms at step 145; 2-step peaks at 0.42×.
+  - success_task2_init46: neither alarms; peaks 0.82× and 0.31×.
+- Avoided tasks 0, 1 and 7 (MuJoCo ≥3.4 start-scene drift) and 3, 8 and 9 (step-0 feature mismatch).
+- Each clip has an MP4 (1280×720, 30 fps), a GIF (640 px, 2× speed), a still and a filmstrip (PNG and PDF).
+
+**Paper:** added `\acknowledgments{We thank Modal for compute.}`. It prints after the main text, on page 5 before the references.

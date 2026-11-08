@@ -6,7 +6,11 @@
 - **Workshop:** Thursday 2026-11-12, 14:00–18:00 CST, Hilton Austin Room 408. Every accepted paper gets a poster (session at 15:35). About five also get a 5-minute lightning talk.
 - **Camera-ready:** the workshop site gives no instructions or deadline. We upload the de-anonymized PDF as a revision on OpenReview. `paper/main.pdf` is the camera-ready version; `paper/eeai_submission.pdf` is the version as submitted.
 - **Reviewer asks and responses:**
-  - **Validate the rollout schedule (the baseline gap).** The setup now states the 1-action replanning schedule the checkpoint ships with, and says we did not test 10-action execution. Limitations lists "one replanning schedule". Not tested experimentally.
+  - **Validate the rollout schedule (the baseline gap).** Tested.
+    - The setup states the 1-action replanning schedule the checkpoint ships with.
+    - Executing 10 actions per plan (`ref_a10`, same 100 test states) gives 33% vs 27%: +6 points, 95% [−1, +14]. So the schedule does not explain the gap to the 56% reproduction.
+    - Also added: an independent evaluation at ~35%, the checkpoint-width difference and MuJoCo ≥3.4 drift.
+    - Monitors were evaluated under the shipped schedule only.
   - **Keep observed success separate from non-inferiority.** "No loss of success" became "no observed drop", with a paired 95% task-bootstrap interval of −1 to +12 points (10 initial states gained, 5 lost).
   - **Claims concern these monitor implementations, not the full SAFE/VLA-FAIL/Sentinel.** Stated in the abstract ("simplified versions") and in Limitations.
   - **Narrow "threshold is what breaks".** The paragraph is now "Most of the loss is the inherited threshold; some is ranking", with the split: 10 points lost to ranking, 34 to the threshold.
@@ -50,6 +54,7 @@ Making SmolVLA 2.5x faster with fewer flow steps, with no observed drop in succe
 ## Camera-ready checklist
 
 - [ ] Read `paper/main.pdf` once end to end.
-- [ ] Make the GitHub repo public. The paper links it. A secret scan of the tree and full history on 2026-11-07 was clean: Modal's HF token is referenced only by name, and the reference PDFs and `data/` were never committed. `NOTES.md` is public with it.
+- [x] Make the GitHub repo public (done 2026-11-07, camera-ready commit 7171a47, tag `eeai-camera-ready`). The paper links it. A secret scan of the tree and full history on 2026-11-07 was clean: Modal's HF token is referenced only by name, and the reference PDFs and `data/` were never committed. `NOTES.md` is public with it.
 - [ ] Upload `paper/main.pdf` as the OpenReview revision and paste the abstract and TL;DR above.
-- [ ] Poster for 2026-11-12 (and a 5-minute talk if selected).
+- [ ] Poster for 2026-11-12 (and a 5-minute talk if selected). Sample videos and stills are in `media/` (see the README).
+- [ ] Upload the videos where wanted (OpenReview supplementary, a project page, slides).

@@ -20,6 +20,8 @@ The test split is 100 episodes per condition: inits 40–49 × 10 tasks.
 
 `w4nv` was stopped after review found the per-row fallback, and is not analysed.
 
+Camera-ready check (run `schedule`, exploratory, success only): `ref_a10`, the original executing 10 actions per plan, succeeds in 0.33 of the test split against 0.27 (paired +0.06, 95% task bootstrap [−0.01, +0.14]). The replanning schedule does not explain the gap to the 0.56 public reproduction.
+
 ## Main findings (inherited = ref-calibrated threshold, α = 0.1)
 
 1. **Step reduction disarms the action-side monitors at unchanged success.**

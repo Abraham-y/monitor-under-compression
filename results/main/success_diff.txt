@@ -1,2 +1,3 @@
 test 40-49: n=100 ref=0.270 steps2=0.320 diff=+0.050 task-bootstrap 95% [-0.010, +0.120] steps2-only 10, ref-only 5, McNemar p=0.30
 calib+test 30-49: n=200 ref=0.260 steps2=0.300 diff=+0.040 task-bootstrap 95% [-0.020, +0.100] steps2-only 21, ref-only 13, McNemar p=0.23
+ref_a10 (10 actions/plan) vs ref, test 40-49: n=100 ref=0.270 ref_a10=0.330 diff=+0.060 task-bootstrap 95% [-0.010, +0.140] ref_a10-only 11, ref-only 5, McNemar p=0.21
