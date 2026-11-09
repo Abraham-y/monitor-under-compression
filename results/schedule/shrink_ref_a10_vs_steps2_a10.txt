@@ -1,0 +1,8 @@
+ref_a10 vs steps2_a10 (run schedule), 100 matched states, offset 10
+success: ref_a10 0.33, steps2_a10 0.44 (steps2_a10-only 14, ref_a10-only 3, McNemar p=0.01)
+early disagreement ratio b/a, first 30 timesteps: all pairs median 0.50, middle half 0.43-0.56
+  runs succeeding in both (30): median 0.44, middle half 0.42-0.51
+episode-score ratio b/a, both succeed: median 0.44, middle half 0.41-0.48, Wilcoxon p=1.9e-09
+illustrative threshold (conformal 90% on the 33 ref_a10 successes): 0.5422
+  successes above it: ref_a10 2/33, steps2_a10 0/44
+  failures above it: ref_a10 16/67, steps2_a10 0/56

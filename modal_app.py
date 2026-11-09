@@ -34,6 +34,7 @@ image = (
         "ffmpeg", "git", "build-essential", "cmake",
     )
     .pip_install("lerobot[smolvla,libero]==0.6.1")
+    .pip_install("lerobot[pi]==0.6.1")  # pi0.5 pilot (adds scipy); separate layer keeps the above cached
     .run_commands(
         "mkdir -p /usr/share/glvnd/egl_vendor.d",
         f"echo '{NVIDIA_EGL}' > /usr/share/glvnd/egl_vendor.d/10_nvidia.json",
@@ -80,6 +81,13 @@ PLANS = {
     # test split with ref's seed, to check the replanning schedule. Kept out of run "main".
     "schedule": {
         "ref_a10": {"inits": list(range(40, 50)), "seeds": [0]},
+        # post-workshop: 2 steps under the same schedule, to separate model from schedule
+        "steps2_a10": {"inits": list(range(40, 50)), "seeds": [0]},
+    },
+    # post-workshop pilot: does 2-step sampling shrink pi0.5's action-consistency scores too?
+    "pi05pilot": {
+        "pi05": {"inits": list(range(40, 50)), "seeds": [0]},
+        "pi05_s2": {"inits": list(range(40, 50)), "seeds": [0]},
     },
 }
 BATCH = 10

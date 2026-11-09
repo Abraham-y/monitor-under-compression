@@ -1,0 +1,8 @@
+pi05 vs pi05_s2 (run pi05pilot), 100 matched states, offset 10
+success: pi05 0.96, pi05_s2 0.96 (pi05_s2-only 1, pi05-only 1, McNemar p=1.00)
+early disagreement ratio b/a, first 30 timesteps: all pairs median 0.86, middle half 0.76-0.95
+  runs succeeding in both (95): median 0.86, middle half 0.76-0.94
+episode-score ratio b/a, both succeed: median 0.88, middle half 0.75-1.05, Wilcoxon p=8.0e-04
+illustrative threshold (conformal 90% on the 96 pi05 successes): 0.2594
+  successes above it: pi05 8/96, pi05_s2 4/96
+  failures above it: pi05 2/4, pi05_s2 2/4

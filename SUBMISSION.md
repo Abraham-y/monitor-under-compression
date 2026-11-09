@@ -10,13 +10,14 @@
     - The setup states the 1-action replanning schedule the checkpoint ships with.
     - Executing 10 actions per plan (`ref_a10`, same 100 test states) gives 33% vs 27%: +6 points, 95% [−1, +14]. So the schedule does not explain the gap to the 56% reproduction.
     - Also added: an independent evaluation at ~35%, the checkpoint-width difference and MuJoCo ≥3.4 drift.
-    - Monitors were evaluated under the shipped schedule only.
+    - The full monitor evaluation uses the shipped schedule. Action consistency alone was also checked at 10 actions per plan (`steps2_a10`, exploratory): shrink 0.50x, failures above an illustrative threshold 16/67 → 0/56, success 33% → 44% (14 gained, 3 lost, p = 0.01).
+    - A π0.5 pilot (100 test states, 10 actions per plan) shrinks only 0.86x, so the paper's Limitations say the effect's size depends on the policy.
   - **Keep observed success separate from non-inferiority.** "No loss of success" became "no observed drop", with a paired 95% task-bootstrap interval of −1 to +12 points (10 initial states gained, 5 lost).
   - **Claims concern these monitor implementations, not the full SAFE/VLA-FAIL/Sentinel.** Stated in the abstract ("simplified versions") and in Limitations.
   - **Narrow "threshold is what breaks".** The paragraph is now "Most of the loss is the inherited threshold; some is ranking", with the split: 10 points lost to ranking, 34 to the threshold.
 
 - **Related work added from a sweep on 2026-11-07, each checked on its arXiv or venue page:**
-  - Yang et al. 2610.32102 explains why 2-step plans agree more: spread shrinks to 0.43–0.51 for π0/π0.5.
+  - Yang et al. 2610.32102: few Euler steps keep the mean plan and shrink its spread. Cited qualitatively only; their ratios are radii and our score is squared.
   - Sujit et al. 2610.30735 finds 34.6% for released SmolVLA on LIBERO-10, and 1 step does not hurt success.
   - Doula & Mühlhäuser (NeurIPS 2026 E&D) is the LM analogue: conformal coverage under inference-time shift.
   - ActProbe 2606.08508 uses the same action-consistency signal.

@@ -27,6 +27,12 @@ Conditions (see PREREG.md):
     ref_a10  the checkpoint as shipped, but executing 10 actions per plan before replanning
              (n_action_steps=10), to check the replanning schedule against the 56% public
              reproduction (camera-ready, success only, exploratory).
+    steps2_a10  steps2 executing 10 actions per plan; with ref_a10, separates model from
+             schedule for the pi0.5 pilot's weaker score shrink (post-workshop, exploratory).
+    pi05     pi0.5 (lerobot/pi05_libero_finetuned_v044), 10 flow steps, executing 10 actions
+             per plan (the checkpoint ships 50, which leaves successive plans no overlap for
+             the action-consistency monitor). Post-workshop pilot; chunks only.
+    pi05_s2  pi05 with 2 flow steps.
 
 Weight quantization is simulated (quantize then dequantize in place), the usual PTQ
 accuracy setup. It changes the numerics a real int8/int4 kernel would see, but not
@@ -45,7 +51,9 @@ import torch
 from torch import nn
 
 POLICY = "HuggingFaceVLA/smolvla_libero"
-CONDITIONS = ("ref", "w8", "w4", "steps2", "w4nv", "w4g32", "ref_a10")
+PI05_POLICY = "lerobot/pi05_libero_finetuned_v044"
+PI05 = ("pi05", "pi05_s2")
+CONDITIONS = ("ref", "w8", "w4", "steps2", "w4nv", "w4g32", "ref_a10", "steps2_a10", *PI05)
 QUANT = ("w8", "w4", "w4nv", "w4g32")
 # Linear layers inside these modules are quantized; the policy's own small heads
 # (state_proj, action_in/out_proj, action_time_mlp_*) stay in full precision.
@@ -61,7 +69,7 @@ def build_cfg(suite: str, task_id: int, n_envs: int, condition: str, episode_len
 
     argv = [
         "lerobot-eval",
-        f"--policy.path={POLICY}",
+        f"--policy.path={PI05_POLICY if condition in PI05 else POLICY}",
         "--env.type=libero",
         f"--env.task={suite}",
         f"--env.task_ids=[{task_id}]",
@@ -70,10 +78,14 @@ def build_cfg(suite: str, task_id: int, n_envs: int, condition: str, episode_len
         "--eval.use_async_envs=false",
         "--env.max_parallel_tasks=1",
     ]
-    if condition == "steps2":
+    if condition in ("steps2", "steps2_a10"):
         argv.append("--policy.num_steps=2")
-    if condition == "ref_a10":
+    if condition in ("ref_a10", "steps2_a10"):
         argv.append("--policy.n_action_steps=10")
+    if condition in PI05:
+        argv += ["--policy.n_action_steps=10", "--policy.compile_model=false"]
+    if condition == "pi05_s2":
+        argv.append("--policy.num_inference_steps=2")
     if episode_length:
         argv.append(f"--env.episode_length={episode_length}")
 
@@ -152,6 +164,8 @@ def verify_quantization(policy: nn.Module, condition: str, sample: int = 12) -> 
 
     Guards against the failure in arXiv 2609.14146, where 'INT8' artifacts were FP32.
     """
+    if condition in PI05:
+        return {}
     lins = _quant_linears(policy, condition)
     total = sum(m.weight.numel() for _, m in policy.named_modules() if isinstance(m, nn.Linear))
     covered = sum(m.weight.numel() for _, m in lins)
@@ -198,6 +212,8 @@ class Recorder:
     def attach(cls, policy: nn.Module) -> "Recorder":
         rec = cls([], [], [])
         model = policy.model
+        if not hasattr(model, "vlm_with_expert"):
+            return cls._attach_chunks_only(rec, model)
         vwe = model.vlm_with_expert
         state = {"pad": None, "exp": None}
 
@@ -235,6 +251,26 @@ class Recorder:
 
         model.embed_prefix = embed_prefix
         vwe.forward = forward
+        model.sample_actions = sample_actions
+        return rec
+
+    @staticmethod
+    def _attach_chunks_only(rec: "Recorder", model: nn.Module) -> "Recorder":
+        """pi0.5: record the action chunk per call; h_vlm/h_exp are 1-d zero placeholders."""
+        orig_sample = model.sample_actions
+
+        def sample_actions(*a, **k):
+            torch.cuda.synchronize()
+            t0 = time.perf_counter()
+            actions = orig_sample(*a, **k)
+            torch.cuda.synchronize()
+            rec.policy_s += time.perf_counter() - t0
+            B = actions.shape[0]
+            rec.h_vlm.append(np.zeros((B, 1), np.float16))
+            rec.h_exp.append(np.zeros((B, 1), np.float16))
+            rec.chunk.append(actions[:, :, :7].float().cpu().numpy().astype(np.float16))
+            return actions
+
         model.sample_actions = sample_actions
         return rec
 
@@ -281,7 +317,8 @@ class Runner:
         self.verify = verify_quantization(self.policy, condition)
         if condition in QUANT and not self.verify["ok"]:
             raise RuntimeError(f"quantization check failed: {self.verify}")
-        self.num_steps = self.policy.config.num_steps
+        cfgp = self.policy.config
+        self.num_steps = getattr(cfgp, "num_steps", None) or getattr(cfgp, "num_inference_steps")
 
         overrides = {
             "device_processor": {"device": str(self.policy.config.device)},

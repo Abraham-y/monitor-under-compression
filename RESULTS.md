@@ -22,6 +22,16 @@ The test split is 100 episodes per condition: inits 40–49 × 10 tasks.
 
 Camera-ready check (run `schedule`, exploratory, success only): `ref_a10`, the original executing 10 actions per plan, succeeds in 0.33 of the test split against 0.27 (paired +0.06, 95% task bootstrap [−0.01, +0.14]). The replanning schedule does not explain the gap to the 0.56 public reproduction.
 
+## Model vs schedule (exploratory; `shrink.py`, 100 matched test states)
+
+| setting | success, 10 → 2 steps | action-consistency shrink, first 30 timesteps | failures above threshold, 10 → 2 steps |
+|---|---|---|---|
+| SmolVLA, replans every step | 0.27 → 0.32 | 0.42 | 21/73 → 0/68 |
+| SmolVLA, 10 actions per plan | 0.33 → 0.44 (14 gained, 3 lost, p = 0.01) | 0.50 | 16/67 → 0/56 |
+| π0.5, 10 actions per plan | 0.96 → 0.96 | 0.86 | 2/4 → 2/4 |
+
+The thresholds are illustrative: conformal 90% on the same 10-step test successes, with no held-out split, so they differ from the paper's main results (36/73 → 0/68 for the first row). Only action consistency was scored at the other schedule and on π0.5. π0.5's four failures per variant are too few to judge detection.
+
 ## Main findings (inherited = ref-calibrated threshold, α = 0.1)
 
 1. **Step reduction disarms the action-side monitors at unchanged success.**

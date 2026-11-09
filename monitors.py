@@ -91,10 +91,13 @@ def select(eps, condition, inits):
 # ---------------------------------------------------------------- per-step scores
 
 
-def chunk_disagreement(chunk: np.ndarray) -> np.ndarray:
-    """s_t = mean sq. difference of chunk_t[k] and chunk_{t-1}[k+1]; s_0 copies s_1."""
+def chunk_disagreement(chunk: np.ndarray, offset: int = 1) -> np.ndarray:
+    """s_t = mean sq. difference of chunk_t[k] and chunk_{t-1}[k+offset]; s_0 copies s_1.
+
+    offset is the number of actions executed between plans (1 for the shipped SmolVLA).
+    """
     c = chunk.astype(np.float32)
-    d = ((c[1:, :-1] - c[:-1, 1:]) ** 2).mean(axis=(1, 2))
+    d = ((c[1:, :-offset] - c[:-1, offset:]) ** 2).mean(axis=(1, 2))
     return np.concatenate([d[:1], d]) if len(d) else np.zeros(1, np.float32)
 
 

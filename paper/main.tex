@@ -189,9 +189,9 @@ lost; 95\% interval over tasks: $-1$ to $+12$ points), not proof of parity.
 
 \paragraph{Most of the loss is the inherited threshold; some is ranking.} The score shrinks by a
 roughly constant factor: on the same initial state, successive plans' disagreement over the first
-30 timesteps is 0.42 times its original value (middle half of episodes: 0.40--0.44), and 0.43 for
-runs that succeed in both. This fits few-step Euler sampling, which keeps the mean plan but shrinks
-its spread, to 0.43--0.51 of the 10-step spread for $\pi_0$ and $\pi_{0.5}$~\citep{coupling}.
+30 timesteps is 0.42 times its original value (middle half: 0.40--0.44), also for
+runs that succeed in both. This is consistent with few-step Euler sampling, which keeps the mean
+plan but shrinks its spread~\citep{coupling}.
 \begin{itemize}
   \item \textbf{Ranking weakens but survives} (Table~\ref{tab:calib}): AUROC goes from 0.77 to
   0.72, and the best threshold chosen with hindsight catches 34\% of failures, against 44\%
@@ -201,9 +201,11 @@ its spread, to 0.43--0.51 of the 10-step spread for $\pi_0$ and $\pi_{0.5}$~\cit
   action consistency, 11\% for the expert probe). A team that checks the false-alarm rate, the
   one thing the threshold guarantees, would see the monitor getting better.
 \end{itemize}
-Set on successes, as is common, the threshold turns the shift into fewer false alarms that hide
-the loss, even for a monitor with no trained weights. Concurrent work finds ranking intact but the
-threshold wrong for quantized probes~\citep{rankpreserving}.
+Concurrent work finds ranking intact but the threshold wrong for quantized
+probes~\citep{rankpreserving}. The collapse repeats at 10 actions per plan (exploratory): the score
+shrinks to 0.50 times and, at an illustrative threshold set on the 10-step policy's test successes,
+caught failures go from 16 of 67 to 0 of 56, while success rises from 33\% to 44\% (14 states
+gained, 3 lost, $p{=}0.01$).
 
 \paragraph{Weight quantization nudges the VLM probe toward ``safe''.} On the first timestep,
 where every variant sees the same image, the VLM probe's score moves toward ``safe'' by 0.29
@@ -227,25 +229,26 @@ int8 moved every false-alarm rate by at most 0.05 but one AUROC by 0.08 (failed)
 
 \section{Related work and discussion}
 
-\paragraph{Related work.} Monitors for VLAs and other learned policies are evaluated with the
+\paragraph{Related work.} Monitors for learned policies are evaluated with the
 policy fixed~\citep{safe,vlafail,fiper,sentinel}; even then, a SAFE-style monitor on held-out tasks can
 far exceed its false-alarm target~\citep{rescue}. SAFECAST~\citep{safecast} studies
-thresholds under input changes. Monitor staleness under model updates has been
-studied for language models~\citep{duan,doula} and, concurrently, for a quantized VLA replayed on
-recorded inputs, repaired by realigning its activations~\citep{rankpreserving}. Speed-up studies
+thresholds under input changes. Staleness under model updates is
+studied for language models~\citep{duan,doula} and, concurrently, for a quantized VLA on
+recorded inputs~\citep{rankpreserving}. Speed-up studies
 measure success, speed and motion quality~\citep{vlaquantbench,quantvla,embodiedeff}. CARE could
-not certify fewer flow steps for $\pi_{0.5}$ on LIBERO-Long~\citep{care}; for SmolVLA, fewer steps
-keep or raise success~\citep{onestep}; we lose only monitoring.
+not certify fewer flow steps for $\pi_{0.5}$ on LIBERO-Long~\citep{care}; for SmolVLA they
+keep or raise success~\citep{onestep}.
 
-\paragraph{Takeaways.} Treat every speed-up as invalidating a monitor's threshold: neither
-unchanged success nor fewer false alarms shows that failures are still caught. Compare its scores
-on successful runs before and after: here the shrink (median 0.27 vs.\ 0.11) shows without a single
-failure. Then re-test detection on the sped-up policy's real failures. Expect a monitor to break
-where its input changes.
+\paragraph{Takeaways.} Treat a speed-up as invalidating a monitor's threshold: neither
+unchanged success nor fewer false alarms shows failures are still caught. Compare scores
+on successful runs before and after: the shrink (median 0.27 vs.\ 0.11) shows with no failures.
+Re-test detection on real failures.
 
-\paragraph{Limitations.} One policy, task suite, replanning schedule and seed, with 100 test
-episodes per variant; low baseline success; simulated quantization. Our monitors simplify SAFE,
-VLA-FAIL and Sentinel rather than reproduce them (SAFE uses a time-varying threshold).
+\paragraph{Limitations.} Full monitor evaluation covers one policy, task suite, schedule and seed
+(100 test episodes per variant); low baseline success; simulated quantization. In a pilot on
+$\pi_{0.5}$~\citep{pi05} (10 actions per plan, 96\% success at 10 and 2 steps) the action-consistency
+score shrinks only to 0.86 times, so the effect's size depends on the policy; 4 failures cannot test
+detection. Our monitors simplify SAFE, VLA-FAIL and Sentinel (SAFE uses a time-varying threshold).
 int4-coarse was an unintended setting that code review caught.
 
 \acknowledgments{We thank Modal for compute.}

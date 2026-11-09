@@ -9,7 +9,9 @@ on SmolVLA (two hidden-state probes, a Mahalanobis OOD score, action-chunk consi
 then run sped-up policies closed loop on LIBERO-Long with the monitors unchanged.
 Sampling each action chunk in 2 flow steps instead of 10 is 2.5x faster with no observed
 drop in success, but the action-consistency monitor goes from catching 49% of failures to
-none, while its false alarms also fall to zero.
+none, while its false alarms also fall to zero. The collapse repeats when SmolVLA executes
+10 actions per plan. In a pilot on π0.5 the same score shrinks far less (0.86x against
+0.42–0.50x), so the effect is SmolVLA-specific so far.
 
 ## Conditions
 
@@ -20,7 +22,9 @@ none, while its false alarms also fall to zero.
 | `steps2` | 2 steps | 2 flow-matching Euler steps instead of 10, weights untouched |
 | `w4g32` | int4-g32 | simulated int4, one scale per 32 weights (post hoc) |
 | `w4` | int4-coarse | pre-registered as int4 g128; in fact per-row for 62% of weights (see `NOTES.md`) |
-| `ref_a10` | (setup text) | the original executing 10 actions per plan instead of 1; success only, camera-ready check |
+| `ref_a10` | (setup text) | the original executing 10 actions per plan instead of 1; exploratory |
+| `steps2_a10` | (results text) | 2 steps at 10 actions per plan; action consistency only; exploratory |
+| `pi05`, `pi05_s2` | (limitations) | `lerobot/pi05_libero_finetuned_v044` at 10 and 2 steps, 10 actions per plan; action consistency only; exploratory pilot |
 
 ## Sample videos
 
@@ -45,7 +49,8 @@ The frames come from replaying the recorded actions (`modal run modal_app.py --s
 - `robustness.py`, `explore.py`: exploratory and review-driven analyses
 - `figures.py`: paper figures; `media.py`: sample videos and stills
 - `success_diff.py`: paired success changes (2 steps, 10-action schedule) cited in the camera-ready
-- `results/main/`: all numbers reported in the paper
+- `shrink.py`: paired action-consistency shrink at 2 steps (SmolVLA at both schedules, π0.5)
+- `results/main/`, `results/schedule/`, `results/pi05pilot/`: all numbers reported in the paper
 - `RESULTS.md`: summary of results; `NOTES.md`: running log, including review findings
 
 Raw rollouts (`data/`, ~1.9 GB) are not in the repo.

@@ -173,3 +173,47 @@ New analysis: `robustness.py` -> results/main/robustness.{json,md}.
 - Each clip has an MP4 (1280×720, 30 fps), a GIF (640 px, 2× speed), a still and a filmstrip (PNG and PDF).
 
 **Paper:** added `\acknowledgments{We thank Modal for compute.}`. It prints after the main text, on page 5 before the references.
+
+## 2026-11-07 (night): pi0.5 pilot (post-workshop, exploratory; user approved; about $3–4)
+
+**Setup:**
+- `lerobot/pi05_libero_finetuned_v044` on LeRobot 0.6.1 (the `pi` extra, added as its own image layer). Compilation off; the checkpoint runs in bf16.
+- The checkpoint ships `n_action_steps=50`, which leaves successive plans no overlap. So the pilot executes 10 actions per plan (40-action overlap), and disagreement is computed at offset 10 (`monitors.chunk_disagreement(..., offset)`; offset=1 is unchanged).
+- Conditions `pi05` (10 flow steps) and `pi05_s2` (2 steps), test inits 40–49, seed 0, 100 matched states.
+- Chunks only; h_vlm/h_exp are placeholders. Analysis: `shrink.py` -> results/pi05pilot/shrink_pi05_vs_pi05_s2.txt.
+- The gated PaliGemma tokenizer loaded with the Modal HF secret.
+
+**Results:**
+- Success 0.96 vs 0.96 (1 gained, 1 lost).
+- Policy time per call (batch 10, L4): 1.84 s vs 1.52 s. Only about 1.2x, because the 2B backbone dominates; SmolVLA gets 2.5x.
+- On the 95 states where both succeed, 2-step disagreement over the first 30 timesteps is 0.86x (middle half 0.76–0.94). Episode score is 0.88x (0.75–1.05), Wilcoxon p=8e-4. SmolVLA was 0.42x.
+- Illustrative threshold (conformal 90% on the same 10-step successes): 4/96 2-step successes exceed it.
+- Only 4 failures per condition, so no detection estimate.
+
+**Reading:**
+- The direction replicates: scores shrink and false alarms would drop. The size does not.
+- Confound: the schedule differs (offset 10 here, offset 1 for SmolVLA). Comparing plans 10 steps apart may be dominated by real replanning rather than sampling spread.
+- Cheapest disambiguation: SmolVLA 2-step at 10 actions per plan (`steps2_a10`, about 10 batches). Its counterpart `ref_a10` already exists.
+- A full pi0.5 detection run needs many more failures than 4%/state gives, e.g. harder or perturbed variants.
+
+## 2026-11-08: model vs schedule (SmolVLA 2 steps at 10 actions per plan; user approved; about $2)
+
+`steps2_a10` (run `schedule`, test inits 40–49, seed 0) against `ref_a10`, offset 10. All three comparisons use `shrink.py`:
+
+| setting | success, 10 -> 2 steps | early shrink (all pairs) | episode-score ratio, both succeed | failures above threshold, 10 -> 2 steps |
+|---|---|---|---|---|
+| SmolVLA, replans every step | .27 -> .32 | 0.42 | 0.38 | 21/73 -> 0/68 |
+| SmolVLA, 10 actions/plan | .33 -> .44 (14 gained / 3 lost, p=.01) | 0.50 (both succeed: 0.44) | 0.44 | 16/67 -> 0/56 |
+| pi0.5, 10 actions/plan | .96 -> .96 | 0.86 | 0.88 | 2/4 -> 2/4 |
+
+The thresholds here are illustrative: conformal 90% on the same 10-step successes, no held-out split. The paper's own threshold for the first row (held-out calibration) gives 36/73 -> 0/68.
+
+**Reading:**
+- It is the model, not the schedule. SmolVLA's shrink stays near 0.4–0.5 at 10 actions per plan, and the detection collapse repeats there. pi0.5's shrink is far smaller at the same schedule.
+- Untested candidate cause: SmolVLA's flow is the most curved of the models in Sujit et al. (1- vs 10-step endpoint error 29%).
+- At 10 actions per plan, 2 steps significantly raises SmolVLA's success. This fits Yang et al.'s finding that coarse integration helps under longer open-loop commitment.
+- shrink.py gives 0.42 for SmolVLA runs succeeding in both, and the paper's earlier 0.43 used inits 30–49 (39 pairs) rather than the test set. On the test set both windows give 0.42 (22 pairs); the paper now says so.
+
+**Correction to the camera-ready (my error):** I cited Yang et al.'s 0.43–0.51 next to our 0.42 as if they agreed. Their ratio is a cloud radius (mean L2 distance to the sample mean); our score is a mean squared difference between successive plans, so the numbers are not comparable. In root-mean-square terms ours are about 0.65 (SmolVLA) and 0.93 (pi0.5). pi0.5 also shows that shrinking within-observation spread need not shrink this score much. The sentence now cites them qualitatively ("consistent with"), and we still have not tested the mechanism. The public PDF at ef21c7f still has the old sentence until the next push.
+
+**Added to the camera-ready on 2026-11-08 (user approved):** a Results sentence on the 10-action collapse and a Limitations sentence on the pi0.5 pilot, plus a citation for pi0.5 (arXiv 2504.16054). To hold 4 pages I cut: "Expect a monitor to break where its input changes" (Takeaways; pi0.5 weakens it anyway), the sentence repeating that the threshold hides the loss, "we lose only monitoring", and "repaired by realigning its activations". Abstract and TL;DR are unchanged.

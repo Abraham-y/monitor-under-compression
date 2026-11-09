@@ -1,0 +1,8 @@
+ref vs steps2 (run main), 100 matched states, offset 1
+success: ref 0.27, steps2 0.32 (steps2-only 10, ref-only 5, McNemar p=0.30)
+early disagreement ratio b/a, first 30 timesteps: all pairs median 0.42, middle half 0.40-0.44
+  runs succeeding in both (22): median 0.42, middle half 0.40-0.44
+episode-score ratio b/a, both succeed: median 0.38, middle half 0.36-0.39, Wilcoxon p=4.8e-07
+illustrative threshold (conformal 90% on the 27 ref successes): 0.4094
+  successes above it: ref 1/27, steps2 0/32
+  failures above it: ref 21/73, steps2 0/68
