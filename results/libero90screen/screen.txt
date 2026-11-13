@@ -1,0 +1,31 @@
+pi0.5 on LIBERO-90: 240 episodes, 24 tasks, init states 40-49, seed 0
+all selected tasks present
+success 0.23 (95% over tasks 0.09-0.40); 56 successes, 184 failures
+tasks by success: 0/10: 15, 1-3/10: 3, 4-6/10: 1, 7-9/10: 1, 10/10: 4
+action-consistency AUROC (failure vs success): pooled 0.79; within task, mean 0.56 over the 5 tasks with both outcomes
+decision rule (success 20%-80%, pooled AUROC >= 0.6): full test worthwhile
+
+0.0  task  0  close the top drawer of the cabinet
+0.0  task  3  put the butter at the back in the top drawer of the cabinet and close it
+0.0  task  6  open the bottom drawer of the cabinet
+0.0  task 18  put the frying pan on the stove
+0.0  task 21  turn on the stove and put the frying pan on it
+0.0  task 39  turn off the stove
+0.0  task 42  put the frying pan under the cabinet shelf
+0.0  task 45  turn on the stove and put the frying pan on it
+0.0  task 63  stack the left bowl on the right bowl and place them in the tray
+0.0  task 66  put the red mug on the right plate
+0.0  task 75  pick up the book and place it in the right compartment of the caddy
+0.0  task 78  pick up the book and place it in the front compartment of the caddy
+0.0  task 81  pick up the book and place it in the front compartment of the caddy
+0.0  task 84  pick up the red mug and place it to the right of the caddy
+0.0  task 87  pick up the book on the left and place it on top of the shelf
+0.1  task 36  put the white bowl on the plate
+0.1  task 69  put the chocolate pudding to the left of the plate
+0.2  task 15  put the middle black bowl on top of the cabinet
+0.4  task 12  put the black bowl at the back on the plate
+0.8  task 60  pick up the black bowl on the left and put it in the tray
+1.0  task 24  put the black bowl in the bottom drawer of the cabinet
+1.0  task 33  close the microwave
+1.0  task 57  pick up the cream cheese and put it in the tray
+1.0  task 72  put the white mug on the plate

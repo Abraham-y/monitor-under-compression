@@ -22,7 +22,7 @@ import modal
 APP_NAME = "monitor-under-compression"
 VOLUME_NAME = "monitor-under-compression"
 GPU = os.environ.get("MUC_GPU", "L4")
-MAX_CONTAINERS = 10
+MAX_CONTAINERS = int(os.environ.get("MUC_MAX_CONTAINERS", 10))
 ROOT = Path(__file__).resolve().parent
 
 vol = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
@@ -87,6 +87,13 @@ PLANS = {
     # post-workshop pilot: does 2-step sampling shrink pi0.5's action-consistency scores too?
     "pi05pilot": {
         "pi05": {"inits": list(range(40, 50)), "seeds": [0]},
+        "pi05_s2": {"inits": list(range(40, 50)), "seeds": [0]},
+    },
+    # post-workshop screen: pi0.5 on LIBERO-90, whose tasks are outside its 40 training tasks.
+    # Run with --suite libero_90 and the task ids in results/libero90screen/selection.json.
+    "libero90screen": {
+        "pi05": {"inits": list(range(40, 50)), "seeds": [0]},
+        # added after the screen passed its rule (NOTES.md, 2026-11-11): same episodes at 2 steps
         "pi05_s2": {"inits": list(range(40, 50)), "seeds": [0]},
     },
 }
@@ -227,6 +234,20 @@ def _is_success(info: dict) -> bool:
     return bool(info.get("is_success", [False])[0])
 
 
+@app.function(cpu=1.0, memory=4 * 1024, timeout=10 * 60)
+def list_tasks(suite: str) -> list[dict]:
+    """Task ids, instructions and init-state counts of a LIBERO suite, in LeRobot's order."""
+    import os
+
+    os.environ["MUJOCO_GL"] = os.environ["PYOPENGL_PLATFORM"] = "osmesa"
+    from libero.libero import benchmark
+    from lerobot.envs.libero import get_task_init_states
+
+    s = benchmark.get_benchmark_dict()[suite]()
+    return [{"task_id": i, "name": s.get_task(i).name, "language": s.get_task(i).language,
+             "n_init": len(get_task_init_states(s, i))} for i in range(s.n_tasks)]
+
+
 @app.function(cpu=4.0, memory=16 * 1024, volumes={"/vol": vol}, timeout=60 * 60,
               secrets=[modal.Secret.from_name("huggingface")])
 def replay(run: str, items: list[tuple[str, int, int]], seed: int = 0) -> list[dict]:
@@ -300,6 +321,9 @@ def main(
         # --items ref:2:42,steps2:2:42  (condition:task:init)
         todo = [(c, int(t), int(i)) for c, t, i in (x.split(":") for x in items.split(","))]
         print(json.dumps(replay.remote(run or plan, todo), indent=1))
+        return
+    if stage == "tasks":
+        print(json.dumps(list_tasks.remote(suite)))
         return
     if stage == "official":
         base = [f"--env.task={suite}", f"--env.task_ids=[{task_id}]"]

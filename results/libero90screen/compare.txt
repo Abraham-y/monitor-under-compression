@@ -1,0 +1,8 @@
+pi0.5 on LIBERO-90, 10 vs 2 flow steps: 240 matched episodes
+threshold inherited, from the 10-step LIBERO-Long successes (n=96): 0.2594
+  10 steps: failures 84/184 (46%), successes 5/56; 2 steps: failures 75/185 (41%), successes 7/55
+threshold reset, from the 2-step LIBERO-Long successes (n=96): 0.2147
+  10 steps: failures 104/184 (57%), successes 8/56; 2 steps: failures 85/185 (46%), successes 10/55
+pooled AUROC at 10 steps: 0.79
+pooled AUROC at 2 steps: 0.77
+rule (collapse if the inherited threshold flags under half the 10-step share of failures, < 23%): partial or no loss (46% -> 41%)

@@ -3,6 +3,7 @@
     python shrink.py --run main --a ref --b steps2 --offset 1                  # SmolVLA, replans every step
     python shrink.py --run schedule --a ref_a10 --b steps2_a10 --offset 10     # SmolVLA, 10 actions/plan
     python shrink.py --run pi05pilot --a pi05 --b pi05_s2 --offset 10          # pi0.5, 10 actions/plan
+    python shrink.py --run libero90screen --a pi05 --b pi05_s2 --offset 10 --suite libero_90
     # -> results/<run>/shrink_<a>_vs_<b>.txt
 
 Compares condition b (2 flow steps) with a (10) on the test split's matched start states.
@@ -29,10 +30,10 @@ ROOT = Path(__file__).resolve().parent
 WARMUP_T, EARLY_T = M.BURN_IN, 30  # timesteps
 
 
-def load(run: str, cond: str, offset: int) -> dict:
+def load(run: str, cond: str, offset: int, suite: str = "libero_10") -> dict:
     warm, early = -(-WARMUP_T // offset), -(-EARLY_T // offset)
     eps = {}
-    for f in sorted((ROOT / "data" / run / cond / "libero_10").glob("*_init40-49_s0.npz")):
+    for f in sorted((ROOT / "data" / run / cond / suite).glob("*_init40-49_s0.npz")):
         z = np.load(f, allow_pickle=False)
         meta = ast.literal_eval(str(z["meta"]))
         for b, init in enumerate(z["init_ids"]):
@@ -58,8 +59,9 @@ def main() -> None:
     ap.add_argument("--a", default="pi05")
     ap.add_argument("--b", default="pi05_s2")
     ap.add_argument("--offset", type=int, default=10)
+    ap.add_argument("--suite", default="libero_10")
     args = ap.parse_args()
-    a, b = load(args.run, args.a, args.offset), load(args.run, args.b, args.offset)
+    a, b = load(args.run, args.a, args.offset, args.suite), load(args.run, args.b, args.offset, args.suite)
     keys = sorted(set(a) & set(b))
     lines = [f"{args.a} vs {args.b} (run {args.run}), {len(keys)} matched states, offset {args.offset}"]
     sa = np.array([a[k]["success"] for k in keys])

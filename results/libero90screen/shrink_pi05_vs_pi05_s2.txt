@@ -1,0 +1,8 @@
+pi05 vs pi05_s2 (run libero90screen), 240 matched states, offset 10
+success: pi05 0.23, pi05_s2 0.23 (pi05_s2-only 1, pi05-only 2, McNemar p=1.00)
+early disagreement ratio b/a, first 30 timesteps: all pairs median 0.81, middle half 0.71-0.90
+  runs succeeding in both (54): median 0.80, middle half 0.73-0.92
+episode-score ratio b/a, both succeed: median 0.90, middle half 0.76-1.03, Wilcoxon p=1.2e-02
+illustrative threshold (conformal 90% on the 56 pi05 successes): 0.3088
+  successes above it: pi05 4/56, pi05_s2 4/55
+  failures above it: pi05 69/184, pi05_s2 59/185

@@ -217,3 +217,44 @@ The thresholds here are illustrative: conformal 90% on the same 10-step successe
 **Correction to the camera-ready (my error):** I cited Yang et al.'s 0.43–0.51 next to our 0.42 as if they agreed. Their ratio is a cloud radius (mean L2 distance to the sample mean); our score is a mean squared difference between successive plans, so the numbers are not comparable. In root-mean-square terms ours are about 0.65 (SmolVLA) and 0.93 (pi0.5). pi0.5 also shows that shrinking within-observation spread need not shrink this score much. The sentence now cites them qualitatively ("consistent with"), and we still have not tested the mechanism. The public PDF at ef21c7f still has the old sentence until the next push.
 
 **Added to the camera-ready on 2026-11-08 (user approved):** a Results sentence on the 10-action collapse and a Limitations sentence on the pi0.5 pilot, plus a citation for pi0.5 (arXiv 2504.16054). To hold 4 pages I cut: "Expect a monitor to break where its input changes" (Takeaways; pi0.5 weakens it anyway), the sentence repeating that the threshold hides the loss, "we lose only monitoring", and "repaired by realigning its activations". Abstract and TL;DR are unchanged.
+
+## 2026-11-08 (late): LIBERO-90 screen for pi0.5 (post-workshop, exploratory; user approved about $10)
+
+Why: the LIBERO-Long pilot had only 4 failures per variant, so it could not test detection. The checkpoint's training set is 40 tasks (`results/libero90screen/training_tasks.txt`: Spatial, Object, Goal, Long; 1,693 episodes), so LIBERO-90 is outside it.
+
+Written before any rollout:
+- Tasks: every third LIBERO-90 task, minus any whose instruction matches a training instruction up to four wording differences (`screen.py`, `SAME`). That leaves 24 tasks; 6 were dropped (9, 27, 30, 48, 51, 54). Some kept tasks are parts of longer training instructions (for example 72, "put the white mug on the plate"). They are kept.
+- Runs: init states 40–49, seed 0, 10 flow steps, 10 actions per plan, LeRobot's 400-step limit. 240 episodes.
+- A full 10-vs-2-step test is worthwhile only if overall success is 20–80% and the action-consistency score separates failures from successes at 10 steps (pooled AUROC >= 0.60). Below 20% there are too few successes to compare; above 80% there are too few failures; below 0.60 the monitor has little to lose.
+
+**Result (2026-11-09), `results/libero90screen/screen.txt`:** success 23% (95% over tasks 9–40%; 56 successes, 184 failures). 15 tasks are 0/10, 4 are 10/10, 5 are mixed. Pooled AUROC 0.79, so the rule as written says the full test is worthwhile.
+
+**Added after seeing the result (`followup.txt`), so exploratory:** 0.79 overstates what the rule was meant to check.
+- Task identity: replacing each episode's score with its task's mean also gives 0.79. Success is almost entirely set by the task, so the pooled number cannot separate "the score tracks failure" from "the score tracks which tasks are hard".
+- Within task: mean 0.56 over the 5 mixed tasks (16 successes, 34 failures), permutation p=0.33. Per-task values run from 0.00 to 0.88, on as few as one success.
+- Episode length: every failure runs 400 steps and the median success stops at 136, and the score is a maximum over the episode. On the first 100 timesteps only, the pooled AUROC is 0.67 (0.59 at 50, 0.61 at 30).
+- Most useful number: a threshold set on the 96 LIBERO-Long successes at 10 steps (conformal 90%, 0.259) flags 84/184 LIBERO-90 failures and 5/56 successes. Median scores: LIBERO-Long successes 0.089, LIBERO-90 successes 0.095, LIBERO-90 failures 0.237.
+
+Reading: the score does rise on tasks pi0.5 cannot do, and a threshold from tasks it can do catches about half of those failures. It is not shown to tell failure from success within a task. A 10-vs-2-step comparison should therefore be read as "does 2-step inference hide tasks the policy cannot do", using the LIBERO-Long threshold. No new calibration runs are needed for that.
+
+Cost: about 1.5 GPU-hours of rollouts (batches took 2–5 min, not the 10.7 I extrapolated from the 2-env smoke test), so roughly $3 with container start-up. Modal had posted $0.60 of it when this was written; hourly rows lag.
+
+## 2026-11-11: pi0.5 LIBERO-90 at 2 steps (user approved about $3; not for the camera-ready)
+
+Same 24 tasks, init states 40–49, seed 0, 10 actions per plan, 2 flow steps (`pi05_s2`). Written before the run:
+- Main comparison, as in the paper: the threshold set on the 96 LIBERO-Long successes at 10 steps (0.259) is inherited by the 2-step policy. Report the share of LIBERO-90 failures above it at 10 steps (84/184 = 46%) and at 2 steps, and the share of successes above it.
+- Call it a SmolVLA-like collapse if the 2-step share of failures flagged is under half the 10-step share (below 23%). Otherwise call it a partial or no loss, with the numbers.
+- Also report: the threshold reset on the 2-step LIBERO-Long successes (pilot `pi05_s2`), to see whether recalibration restores it; paired success with McNemar; and the paired score ratio (shrink.py `--suite libero_90`).
+- This compares tasks pi0.5 can and cannot do. It does not test failure detection within a task (see 2026-11-09).
+
+**Result (2026-11-12), `results/libero90screen/compare.txt` and `shrink_pi05_vs_pi05_s2.txt`:** partial loss, not a collapse.
+- Inherited threshold: failures flagged 84/184 (46%) at 10 steps, 75/185 (41%) at 2 steps; successes flagged 5/56 and 7/55.
+- Threshold reset on the 2-step LIBERO-Long successes (0.215): 2 steps flags 85/185 (46%), so recalibrating on successes alone recovers the loss.
+- Success 23% at both (2-step-only 1, 10-step-only 2, McNemar p=1.00). Pooled AUROC 0.79 and 0.77.
+- Score ratio 2/10 for runs succeeding in both: median 0.90 (middle half 0.76–1.03, Wilcoxon p=0.01); first 30 timesteps 0.81. SmolVLA's was 0.42.
+- Added after seeing the result: on the 183 episodes that fail at both, 13 are flagged only at 10 steps and 4 only at 2 (McNemar p=0.05), so the 5-point loss is borderline.
+- Speed: 1.91 vs 1.54 s per policy call, about 1.24x faster, against SmolVLA's 2.5x. The two models were not compressed by the same amount.
+
+Reading: with pi0.5, 2-step sampling shrinks the score about 10% and costs a few points of detection of tasks the policy cannot do; the threshold is still roughly right. Together with the LIBERO-Long pilot, this supports the paper's Limitations wording that the effect's size depends on the policy. It does not say whether a bigger pi0.5 speed-up would break the monitor.
+
+Cost: Modal billed $3.60 for the 10-step screen and $3.40 for this run (about 1.5 GPU-hours each). Modal ran one container at a time this run despite a cap of 6; I did not find out why.

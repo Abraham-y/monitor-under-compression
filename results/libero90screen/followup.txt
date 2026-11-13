@@ -1,0 +1,8 @@
+pooled AUROC 0.79
+episode length: successes median 136 (range 84-388), failures all 400-400
+pooled AUROC on the first T timesteps of every episode: T=30: 0.61, T=50: 0.59, T=100: 0.67, T=200: 0.70, T=300: 0.77
+pooled AUROC with each episode's score replaced by its task's mean: 0.79
+within-task AUROC: mean 0.56 over 5 tasks (16 successes, 34 failures), one-sided permutation p=0.33; task 12 0.58, task 15 0.56, task 36 0.00, task 60 0.88, task 69 0.78
+threshold from the 96 LIBERO-Long successes at 10 steps (pi05pilot, conformal 90%): 0.2594
+  LIBERO-90 above it: failures 84/184, successes 5/56
+  median score: LIBERO-Long successes 0.089, LIBERO-90 successes 0.095, LIBERO-90 failures 0.237
